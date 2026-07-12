@@ -1097,6 +1097,15 @@
             <name>$PROJ_DIR$/../Core/Src/accel/bmi088_accel_stm32.c</name>
           </file>
         </group>
+        <group>
+          <name>UV</name>
+          <file>
+            <name>$PROJ_DIR$/../Core/Src/uv/ltr390.c</name>
+          </file>
+          <file>
+            <name>$PROJ_DIR$/../Core/Src/uv/ltr390_stm32.c</name>
+          </file>
+        </group>
       </group>
     </group>
   </group>

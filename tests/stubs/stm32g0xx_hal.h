@@ -33,6 +33,14 @@ typedef struct {
 } SPI_HandleTypeDef;
 
 typedef struct {
+    uint32_t AddressingMode;
+} I2C_InitTypeDef;
+
+typedef struct {
+    I2C_InitTypeDef Init;
+} I2C_HandleTypeDef;
+
+typedef struct {
     uint32_t unused;
 } GPIO_TypeDef;
 
@@ -57,6 +65,10 @@ typedef struct {
 #define SPI_BAUDRATEPRESCALER_128 128U
 #define SPI_BAUDRATEPRESCALER_256 256U
 
+#define I2C_ADDRESSINGMODE_7BIT 0x01U
+#define I2C_ADDRESSINGMODE_10BIT 0x02U
+#define I2C_MEMADD_SIZE_8BIT 0x01U
+
 void HAL_GPIO_WritePin(GPIO_TypeDef *port,
                        uint16_t pin,
                        GPIO_PinState state);
@@ -71,6 +83,22 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive(SPI_HandleTypeDef *spi,
                                           uint8_t *rx_data,
                                           uint16_t size,
                                           uint32_t timeout);
+
+HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *i2c,
+                                   uint16_t device_address,
+                                   uint16_t memory_address,
+                                   uint16_t memory_address_size,
+                                   uint8_t *data,
+                                   uint16_t size,
+                                   uint32_t timeout);
+
+HAL_StatusTypeDef HAL_I2C_Mem_Write(I2C_HandleTypeDef *i2c,
+                                    uint16_t device_address,
+                                    uint16_t memory_address,
+                                    uint16_t memory_address_size,
+                                    uint8_t *data,
+                                    uint16_t size,
+                                    uint32_t timeout);
 
 void HAL_Delay(uint32_t milliseconds);
 uint32_t HAL_RCC_GetPCLK1Freq(void);

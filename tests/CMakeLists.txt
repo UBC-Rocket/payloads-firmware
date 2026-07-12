@@ -29,3 +29,25 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME bmi088_accel COMMAND test_bmi088_accel)
+
+add_executable(test_ltr390
+    test_ltr390.c
+    ../Core/Src/uv/ltr390.c
+    ../Core/Src/uv/ltr390_stm32.c
+)
+
+target_include_directories(test_ltr390 PRIVATE
+    stubs
+    ../Core/Inc
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_ltr390 PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
+endif()
+
+add_test(NAME ltr390 COMMAND test_ltr390)

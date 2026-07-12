@@ -46,6 +46,8 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/accel/bmi088_accel.c
     Core/Src/accel/bmi088_accel_stm32.c
+    Core/Src/uv/ltr390.c
+    Core/Src/uv/ltr390_stm32.c
 )
 
 # Add include paths

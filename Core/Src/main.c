@@ -23,6 +23,8 @@
 /* USER CODE BEGIN Includes */
 #include "accel/bmi088_accel.h"
 #include "accel/bmi088_accel_stm32.h"
+#include "uv/ltr390.h"
+#include "uv/ltr390_stm32.h"
 
 /* USER CODE END Includes */
 
@@ -33,6 +35,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define UV_SENSOR_COUNT 3U
+#define UV_POLL_INTERVAL_MS 10U
+#define UV_WINDOW_FACTOR 1.0f
 
 /* USER CODE END PD */
 
@@ -64,6 +69,23 @@ volatile bmi088_accel_status_t accel_last_status =
     BMI088_ACCEL_ERROR_NOT_INITIALIZED;
 volatile uint32_t accel_sample_count;
 volatile uint32_t accel_error_count;
+
+ltr390_t huv[UV_SENSOR_COUNT];
+ltr390_stm32_bus_t huv_bus[UV_SENSOR_COUNT];
+static I2C_HandleTypeDef *const uv_i2c_handles[UV_SENSOR_COUNT] = {
+    &hi2c1,
+    &hi2c2,
+    &hi2c3,
+};
+volatile ltr390_uvs_sample_t uv_latest_sample[UV_SENSOR_COUNT];
+volatile ltr390_status_t uv_last_status[UV_SENSOR_COUNT] = {
+    LTR390_ERROR_NOT_INITIALIZED,
+    LTR390_ERROR_NOT_INITIALIZED,
+    LTR390_ERROR_NOT_INITIALIZED,
+};
+volatile uint32_t uv_sample_count[UV_SENSOR_COUNT];
+volatile uint32_t uv_error_count[UV_SENSOR_COUNT];
+static uint32_t uv_next_poll_ms;
 
 /* USER CODE END PV */
 
@@ -139,6 +161,28 @@ int main(void)
                                           &bmi088_accel_default_config);
   }
 
+  for (uint32_t sensor_index = 0U;
+       sensor_index < UV_SENSOR_COUNT;
+       sensor_index++)
+  {
+    ltr390_status_t status =
+        ltr390_stm32_bind(&huv[sensor_index],
+                          &huv_bus[sensor_index],
+                          uv_i2c_handles[sensor_index],
+                          10U);
+    if (status == LTR390_OK)
+    {
+      status = ltr390_init(&huv[sensor_index],
+                           &ltr390_default_uvs_config);
+    }
+    if (status != LTR390_OK)
+    {
+      uv_error_count[sensor_index]++;
+    }
+    uv_last_status[sensor_index] = status;
+  }
+  uv_next_poll_ms = HAL_GetTick();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -173,6 +217,44 @@ int main(void)
     }
 
     // (2) read uv data
+    const uint32_t now_ms = HAL_GetTick();
+    if ((int32_t)(now_ms - uv_next_poll_ms) >= 0)
+    {
+      uv_next_poll_ms = now_ms + UV_POLL_INTERVAL_MS;
+
+      for (uint32_t sensor_index = 0U;
+           sensor_index < UV_SENSOR_COUNT;
+           sensor_index++)
+      {
+        if (!huv[sensor_index].initialized)
+        {
+          continue;
+        }
+
+        bool data_ready = false;
+        ltr390_status_t status =
+            ltr390_data_ready(&huv[sensor_index], &data_ready);
+
+        if (status == LTR390_OK && data_ready)
+        {
+          ltr390_uvs_sample_t sample;
+          status = ltr390_read_uvs(&huv[sensor_index],
+                                   UV_WINDOW_FACTOR,
+                                   &sample);
+          if (status == LTR390_OK)
+          {
+            uv_latest_sample[sensor_index] = sample;
+            uv_sample_count[sensor_index]++;
+          }
+        }
+
+        if (status != LTR390_OK)
+        {
+          uv_error_count[sensor_index]++;
+        }
+        uv_last_status[sensor_index] = status;
+      }
+    }
 
     // (3) write data to sd card
     
