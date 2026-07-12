@@ -1088,6 +1088,15 @@
         <file>
           <name>$PROJ_DIR$/../Core/Src/stm32g0xx_hal_msp.c</name>
         </file>
+        <group>
+          <name>Accel</name>
+          <file>
+            <name>$PROJ_DIR$/../Core/Src/accel/bmi088_accel.c</name>
+          </file>
+          <file>
+            <name>$PROJ_DIR$/../Core/Src/accel/bmi088_accel_stm32.c</name>
+          </file>
+        </group>
       </group>
     </group>
   </group>

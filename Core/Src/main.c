@@ -21,6 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "accel/bmi088_accel.h"
+#include "accel/bmi088_accel_stm32.h"
 
 /* USER CODE END Includes */
 
@@ -55,6 +57,13 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+bmi088_accel_t haccel;
+bmi088_accel_stm32_bus_t haccel_bus;
+volatile bmi088_accel_sample_t accel_latest_sample;
+volatile bmi088_accel_status_t accel_last_status =
+    BMI088_ACCEL_ERROR_NOT_INITIALIZED;
+volatile uint32_t accel_sample_count;
+volatile uint32_t accel_error_count;
 
 /* USER CODE END PV */
 
@@ -118,6 +127,17 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  accel_last_status = bmi088_accel_stm32_bind(&haccel,
+                                               &haccel_bus,
+                                               &hspi2,
+                                               ACC_CS_GPIO_Port,
+                                               ACC_CS_Pin,
+                                               10U);
+  if (accel_last_status == BMI088_ACCEL_OK)
+  {
+    accel_last_status = bmi088_accel_init(&haccel,
+                                          &bmi088_accel_default_config);
+  }
 
   /* USER CODE END 2 */
 
@@ -125,9 +145,41 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
+
+    // (1) read accel data
+    if (haccel.initialized)
+    {
+      bool data_ready = false;
+      bmi088_accel_status_t status =
+          bmi088_accel_data_ready(&haccel, &data_ready);
+
+      if (status == BMI088_ACCEL_OK && data_ready)
+      {
+        bmi088_accel_sample_t sample;
+        status = bmi088_accel_read_sample(&haccel, &sample);
+        if (status == BMI088_ACCEL_OK)
+        {
+          accel_latest_sample = sample;
+          accel_sample_count++;
+        }
+      }
+
+      if (status != BMI088_ACCEL_OK)
+      {
+        accel_error_count++;
+      }
+      accel_last_status = status;
+    }
+
+    // (2) read uv data
+
+    // (3) write data to sd card
+    
+
+    // (4) read/write data to LoRa
+
+    HAL_Delay(1U);
   }
   /* USER CODE END 3 */
 }
@@ -440,11 +492,11 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -642,7 +694,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(STAT_LEDR_GPIO_Port, STAT_LEDR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, ACC_CS_Pin|GYRO_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, ACC_CS_Pin|GYRO_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, PUMP_CTRL_Pin|VBAT_TRIGGER_Pin, GPIO_PIN_RESET);
