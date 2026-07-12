@@ -1,5 +1,7 @@
 # Payloads firmware
 
+This is the firmware for UBC Rocket's Cloudburst payload, to be used in Launch Canada 2026. The architecture is fairly simple: we continuously read accelerometer and UV data, write the data to an SD card, while monitoring for commands from the LoRa radio module. In all honesty I don't know exactly what we're meant to be testing, but that means that you don't have to either to understand this codebase.   
+
 STM32G0B1CCT6 firmware generated with STM32CubeMX and built with CMake, Ninja,
 and the Arm GNU toolchain (and codex).
 
