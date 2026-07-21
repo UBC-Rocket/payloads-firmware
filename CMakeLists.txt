@@ -44,6 +44,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    Core/Src/rn2483.c
     Core/Src/accel/bmi088_accel.c
     Core/Src/accel/bmi088_accel_stm32.c
     Core/Src/uv/ltr390.c

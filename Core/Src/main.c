@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "accel/bmi088_accel.h"
 #include "accel/bmi088_accel_stm32.h"
+#include "rn2483.h"
 #include "uv/ltr390.h"
 #include "uv/ltr390_stm32.h"
 
@@ -43,6 +44,8 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+//Radio Initialization code
+
 
 /* USER CODE END PM */
 
@@ -148,6 +151,7 @@ int main(void)
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
+  RN2483_Init(&huart2);
   /* USER CODE BEGIN 2 */
   accel_last_status = bmi088_accel_stm32_bind(&haccel,
                                                &haccel_bus,
