@@ -32,6 +32,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define UVLED_PWM_PERIOD_TICKS 64000U
+#define UVLED_PWM_ON_TICKS 32000U
 
 /* USER CODE END PD */
 
@@ -119,10 +121,24 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  /* PA1 is UVLED_CTRL/TIM2_CH2 in Payloads.ioc. One shared active-high
-     control turns on all three UV emitters. Force the preloaded compare
-  value into the active register before starting the channel. */
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, htim2.Init.Period);
+  /* Override TIM2_CH2 only at runtime to generate 1 kHz with a 10%
+     active-high LED-on interval. */
+  TIM_OC_InitTypeDef uvled_pwm = {0};
+  uvled_pwm.OCMode = TIM_OCMODE_PWM1;
+  uvled_pwm.Pulse = UVLED_PWM_ON_TICKS;
+  uvled_pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
+  uvled_pwm.OCFastMode = TIM_OCFAST_DISABLE;
+
+  __HAL_TIM_DISABLE(&htim2);
+  __HAL_TIM_SET_PRESCALER(&htim2, 0U);
+  __HAL_TIM_SET_AUTORELOAD(&htim2, UVLED_PWM_PERIOD_TICKS - 1U);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  if (HAL_TIM_PWM_ConfigChannel(&htim2,
+                                &uvled_pwm,
+                                TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_GenerateEvent(&htim2, TIM_EVENTSOURCE_UPDATE) != HAL_OK)
   {
     Error_Handler();

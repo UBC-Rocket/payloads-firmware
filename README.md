@@ -1,12 +1,7 @@
 # Payloads firmware
 
-Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It
-continuously acquires the BMI088 accelerometer and one LTR390 UV sensor, drives
-the three UV emitters, logs timestamped records to the SD card, and controls the
-pump from validated RN2483 raw-LoRa commands.
+Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from the accel and the UV sensor(s; should be three, but currently only has 1). UV values are set using pwm in main.c, we should probably figure out exactly what values we want for that at some point. LORA might work, might not, who even knows. The rest of this readme is AI generated :smile:
 
-`Payloads.ioc` is the hardware configuration source of truth and is not modified
-by the application code.
 
 ## Build
 
@@ -36,8 +31,9 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
 - The single LTR390 is detected on the configured 100 kHz I2C1, I2C2, and I2C3
   headers in that order. Once found, only that instance is sampled. It runs in
   UV mode at 20-bit resolution, a 500 ms measurement period, and 18x gain.
-- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. Startup applies effectively
-  100% active-high PWM on this shared net, turning on all three UV emitters.
+- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. A runtime override in the
+  protected user-code section runs it at 1 kHz with a 10% active-high LED-on
+  interval on the shared UV-emitter control net.
 - A preformatted FAT16 or FAT32 SD card on SPI1 is mounted without formatting.
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
