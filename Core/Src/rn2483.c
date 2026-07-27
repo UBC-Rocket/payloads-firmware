@@ -1,333 +1,435 @@
-/*! @file rn2483.c
- *  @brief RN2483 UART driver for the STM32G0B1.
- */
-
-#include "main.h"
 #include "rn2483.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define RN2483_RESPONSE_TIMEOUT_MS 2000U
-#define RN2483_ASYNC_RESPONSE_TIMEOUT_MS 30000U
+#define RN2483_RESPONSE_TIMEOUT_MS 1000U
+#define RN2483_RETRY_DELAY_MS 1000U
+#define RN2483_CONFIGURATION_STEP_COUNT 22U
 
+typedef enum {
+    EXPECT_EXACT = 0,
+    EXPECT_PREFIX,
+    EXPECT_NONZERO_NUMBER
+} expected_reply_t;
 
-/* USART2 (PA2/PA3) is wired to the RN2483.  USART1 is reserved for debugging. */
-static UART_HandleTypeDef *rn2483_uart = NULL;
-
-void RN2483_Init(UART_HandleTypeDef *uart)
+static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
-    rn2483_uart = uart;
+    return (int32_t)(now_ms - deadline_ms) >= 0;
 }
 
-static int read_byte(uint8_t *byte, uint32_t timeout_ms)
+static bool config_valid(const rn2483_raw_config_t *config)
 {
-    if (rn2483_uart == NULL)
-    {
-        return RN2483_ERR_PARAM;
+    if (config == NULL) {
+        return false;
     }
-    HAL_StatusTypeDef result;
 
-    result = HAL_UART_Receive(rn2483_uart, byte, 1U, timeout_ms);
+    const bool frequency_valid =
+        (config->frequency_hz >= 433050000U &&
+         config->frequency_hz <= 434790000U) ||
+        (config->frequency_hz >= 863000000U &&
+         config->frequency_hz <= 870000000U);
+    const bool bandwidth_valid =
+        config->bandwidth_khz == 125U ||
+        config->bandwidth_khz == 250U ||
+        config->bandwidth_khz == 500U;
 
-    switch (result)
-    {
-        case HAL_OK:
-            return RN2483_SUCCESS;
-
-        case HAL_TIMEOUT:
-            return RN2483_ERR_TIMEOUT;
-
-        case HAL_BUSY:
-            return RN2483_ERR_BUSY;
-
-        case HAL_ERROR:
-        default:
-            return RN2483_ERR_UART;
-    }
+    return frequency_valid &&
+           config->spreading_factor >= 7U &&
+           config->spreading_factor <= 12U &&
+           bandwidth_valid &&
+           config->coding_rate_denominator >= 5U &&
+           config->coding_rate_denominator <= 8U;
 }
 
-static int write_command(const char *command)
+static void enter_backoff(rn2483_t *device, uint32_t now_ms)
 {
-    if (rn2483_uart == NULL)
-    {
-        return RN2483_ERR_PARAM;
-    }
-
-    size_t length = strlen(command);
-
-    if (length == 0U || length >= RN2483_MAX_COMMAND)
-    {
-        return RN2483_ERR_PARAM;
-    }
-
-    HAL_StatusTypeDef result;
-
-    result = HAL_UART_Transmit(rn2483_uart,
-                               (uint8_t *)command,
-                               (uint16_t)length,
-                               RN2483_RESPONSE_TIMEOUT_MS);
-
-    switch (result)
-    {
-        case HAL_OK:
-            return RN2483_SUCCESS;
-
-        case HAL_TIMEOUT:
-            return RN2483_ERR_TIMEOUT;
-
-        case HAL_BUSY:
-            return RN2483_ERR_BUSY;
-
-        case HAL_ERROR:
-        default:
-            return RN2483_ERR_UART;
-    }
+    device->phase = RN2483_PHASE_BACKOFF;
+    device->waiting_for_reply = false;
+    device->ready = false;
+    device->retry_at_ms = now_ms + RN2483_RETRY_DELAY_MS;
+    device->configuration_step = 0U;
+    device->stats.restarts++;
 }
 
-static int RN2483_response(char *response, uint32_t first_byte_timeout_ms)
+static bool transmit_command(rn2483_t *device,
+                             const char *command,
+                             uint32_t now_ms)
 {
-    size_t index = 0U;
-    uint8_t byte;
-    uint32_t timeout_ms = first_byte_timeout_ms;
-
-    if (response == NULL) {
-        return RN2483_ERR_PARAM;
+    const size_t length = strlen(command);
+    if (length == 0U || length >= RN2483_COMMAND_SIZE ||
+        !device->transport.transmit(device->transport.context,
+                                    (const uint8_t *)command,
+                                    length)) {
+        device->stats.transport_errors++;
+        enter_backoff(device, now_ms);
+        return false;
     }
 
-    while (index < (RN2483_MAX_BUFF - 1U)) {
-        
-        int status = read_byte(&byte, timeout_ms);
+    device->waiting_for_reply = true;
+    device->deadline_ms = now_ms + RN2483_RESPONSE_TIMEOUT_MS;
+    return true;
+}
 
-        if (status != RN2483_SUCCESS)
-        {
-            response[index] = '\0';
-            return status;
+static bool build_configuration_command(const rn2483_t *device,
+                                        uint8_t step,
+                                        char *command,
+                                        size_t command_size,
+                                        char *expected,
+                                        size_t expected_size,
+                                        expected_reply_t *expected_type)
+{
+    int command_length = -1;
+    int expected_length = -1;
+    *expected_type = EXPECT_EXACT;
+
+    switch (step) {
+    case 0U:
+        command_length = snprintf(command, command_size, "sys get ver\r\n");
+        expected_length = snprintf(expected, expected_size, "RN2483 ");
+        *expected_type = EXPECT_PREFIX;
+        break;
+    case 1U:
+        command_length = snprintf(command, command_size, "mac pause\r\n");
+        expected[0] = '\0';
+        expected_length = 0;
+        *expected_type = EXPECT_NONZERO_NUMBER;
+        break;
+    case 2U:
+        command_length = snprintf(command, command_size,
+                                  "radio set mod lora\r\n");
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 3U:
+        command_length = snprintf(command, command_size,
+                                  "radio set freq %lu\r\n",
+                                  (unsigned long)device->config.frequency_hz);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 4U:
+        command_length = snprintf(command, command_size,
+                                  "radio set sf sf%u\r\n",
+                                  device->config.spreading_factor);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 5U:
+        command_length = snprintf(command, command_size,
+                                  "radio set bw %u\r\n",
+                                  device->config.bandwidth_khz);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 6U:
+        command_length = snprintf(command, command_size,
+                                  "radio set cr 4/%u\r\n",
+                                  device->config.coding_rate_denominator);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 7U:
+        command_length = snprintf(command, command_size,
+                                  "radio set crc on\r\n");
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 8U:
+        command_length = snprintf(command, command_size,
+                                  "radio set iqi off\r\n");
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 9U:
+        command_length = snprintf(command, command_size,
+                                  "radio set prlen 8\r\n");
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 10U:
+        command_length = snprintf(command, command_size,
+                                  "radio set sync %02X\r\n",
+                                  device->config.sync_word);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 11U:
+        command_length = snprintf(command, command_size,
+                                  "radio set wdt 0\r\n");
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 12U:
+        command_length = snprintf(command, command_size, "radio get mod\r\n");
+        expected_length = snprintf(expected, expected_size, "lora");
+        break;
+    case 13U:
+        command_length = snprintf(command, command_size, "radio get freq\r\n");
+        expected_length = snprintf(expected, expected_size, "%lu",
+                                   (unsigned long)device->config.frequency_hz);
+        break;
+    case 14U:
+        command_length = snprintf(command, command_size, "radio get sf\r\n");
+        expected_length = snprintf(expected, expected_size, "sf%u",
+                                   device->config.spreading_factor);
+        break;
+    case 15U:
+        command_length = snprintf(command, command_size, "radio get bw\r\n");
+        expected_length = snprintf(expected, expected_size, "%u",
+                                   device->config.bandwidth_khz);
+        break;
+    case 16U:
+        command_length = snprintf(command, command_size, "radio get cr\r\n");
+        expected_length = snprintf(expected, expected_size, "4/%u",
+                                   device->config.coding_rate_denominator);
+        break;
+    case 17U:
+        command_length = snprintf(command, command_size, "radio get crc\r\n");
+        expected_length = snprintf(expected, expected_size, "on");
+        break;
+    case 18U:
+        command_length = snprintf(command, command_size, "radio get iqi\r\n");
+        expected_length = snprintf(expected, expected_size, "off");
+        break;
+    case 19U:
+        command_length = snprintf(command, command_size, "radio get prlen\r\n");
+        expected_length = snprintf(expected, expected_size, "8");
+        break;
+    case 20U:
+        command_length = snprintf(command, command_size, "radio get sync\r\n");
+        expected_length = snprintf(expected, expected_size, "%02X",
+                                   device->config.sync_word);
+        break;
+    case 21U:
+        command_length = snprintf(command, command_size, "radio get wdt\r\n");
+        expected_length = snprintf(expected, expected_size, "0");
+        break;
+    default:
+        return false;
+    }
+
+    return command_length >= 0 &&
+           (size_t)command_length < command_size &&
+           expected_length >= 0 &&
+           (size_t)expected_length < expected_size;
+}
+
+static bool strings_equal_case_insensitive(const char *left,
+                                           const char *right)
+{
+    while (*left != '\0' && *right != '\0') {
+        char left_char = *left;
+        char right_char = *right;
+        if (left_char >= 'a' && left_char <= 'z') {
+            left_char = (char)(left_char - ('a' - 'A'));
+        }
+        if (right_char >= 'a' && right_char <= 'z') {
+            right_char = (char)(right_char - ('a' - 'A'));
+        }
+        if (left_char != right_char) {
+            return false;
+        }
+        left++;
+        right++;
+    }
+    return *left == '\0' && *right == '\0';
+}
+
+static bool configuration_reply_matches(const rn2483_t *device,
+                                        const char *line)
+{
+    char command[RN2483_COMMAND_SIZE];
+    char expected[RN2483_LINE_SIZE];
+    expected_reply_t expected_type;
+    if (!build_configuration_command(device,
+                                     device->configuration_step,
+                                     command,
+                                     sizeof(command),
+                                     expected,
+                                     sizeof(expected),
+                                     &expected_type)) {
+        return false;
+    }
+
+    if (expected_type == EXPECT_PREFIX) {
+        return strncmp(line, expected, strlen(expected)) == 0;
+    }
+    if (expected_type == EXPECT_NONZERO_NUMBER) {
+        char *end = NULL;
+        const unsigned long value = strtoul(line, &end, 10);
+        return end != line && *end == '\0' && value != 0UL;
+    }
+    return strings_equal_case_insensitive(line, expected);
+}
+
+static void handle_complete_line(rn2483_t *device,
+                                 const char *line,
+                                 uint32_t now_ms)
+{
+    device->stats.received_lines++;
+
+    if (device->phase == RN2483_PHASE_LISTENING) {
+        if (strcmp(line, "radio_rx 50554D505F4F4E") == 0) {
+            device->pending_event = RN2483_EVENT_PUMP_ON;
+            device->stats.valid_commands++;
+        } else if (strcmp(line, "radio_rx 50554D505F4F4646") == 0) {
+            device->pending_event = RN2483_EVENT_PUMP_OFF;
+            device->stats.valid_commands++;
+        } else if (strncmp(line, "radio_rx ", 9U) == 0) {
+            device->stats.invalid_packets++;
+        } else if (strcmp(line, "radio_err") != 0) {
+            device->stats.invalid_lines++;
+            return;
         }
 
-        response[index++] = (char)byte;
-        response[index] = '\0';
+        device->ready = false;
+        device->phase = RN2483_PHASE_ARM_RECEIVER;
+        device->waiting_for_reply = false;
+        return;
+    }
+
+    if (!device->waiting_for_reply) {
+        device->stats.invalid_lines++;
+        return;
+    }
+
+    if (device->phase == RN2483_PHASE_CONFIGURE) {
+        if (!configuration_reply_matches(device, line)) {
+            device->stats.invalid_lines++;
+            enter_backoff(device, now_ms);
+            return;
+        }
+        device->configuration_step++;
+        device->waiting_for_reply = false;
+        if (device->configuration_step >=
+            RN2483_CONFIGURATION_STEP_COUNT) {
+            device->phase = RN2483_PHASE_ARM_RECEIVER;
+        }
+    } else if (device->phase == RN2483_PHASE_ARM_RECEIVER) {
+        if (strcmp(line, "ok") != 0) {
+            device->stats.invalid_lines++;
+            enter_backoff(device, now_ms);
+            return;
+        }
+        device->waiting_for_reply = false;
+        device->phase = RN2483_PHASE_LISTENING;
+        device->ready = true;
+    }
+}
+
+static void consume_received_bytes(rn2483_t *device, uint32_t now_ms)
+{
+    while (device->rx_tail != device->rx_head) {
+        const uint8_t byte = device->rx_ring[device->rx_tail];
+        device->rx_tail =
+            (uint16_t)((device->rx_tail + 1U) % RN2483_RX_RING_SIZE);
+
         if (byte == '\n') {
-            return RN2483_SUCCESS;
-        }
-        timeout_ms = RN2483_RESPONSE_TIMEOUT_MS;
-    }
-
-    response[index] = '\0';
-    return RN2483_EOB;
-}
-
-static int command_expect_ok(const char *command)
-{
-    char response[RN2483_MAX_BUFF];
-    int status = RN2483_command(command, response);
-
-    return (status == RN2483_SUCCESS && strcmp(response, "ok\r\n") == 0)
-               ? RN2483_SUCCESS
-               : (status == RN2483_SUCCESS ? RN2483_ERR_PANIC : status);
-}
-
-static bool configured(const char *value)
-{
-    return value != NULL && value[0] != '\0';
-}
-
-static int max_payload_length(void)
-{
-    if (strcmp(RN2483_DATA_RATE, "0") == 0 || strcmp(RN2483_DATA_RATE, "1") == 0 ||
-        strcmp(RN2483_DATA_RATE, "2") == 0) {
-        return 59;
-    }
-    if (strcmp(RN2483_DATA_RATE, "3") == 0) {
-        return 123;
-    }
-    if (strcmp(RN2483_DATA_RATE, "4") == 0 || strcmp(RN2483_DATA_RATE, "5") == 0 ||
-        strcmp(RN2483_DATA_RATE, "6") == 0 || strcmp(RN2483_DATA_RATE, "7") == 0) {
-        return 230;
-    }
-    return 0;
-}
-
-int RN2483_reset(void)
-{
-    char response[RN2483_MAX_BUFF];
-    return RN2483_command("sys reset\r\n", response);
-}
-
-int RN2483_autobaud(int baud)
-{
-    uint8_t sync = 0x55U;
-    HAL_StatusTypeDef result;
-
-    if (rn2483_uart == NULL || baud <= 0) {
-        return RN2483_ERR_PARAM;
-    }
-
-    /* The RN2483 detects the new baud rate from a UART break followed by 0x55. */
-    if (HAL_UART_DeInit(rn2483_uart) != HAL_OK) {
-        return RN2483_ERR_UART;
-    }
-    rn2483_uart->Init.BaudRate = (uint32_t)baud;
-    if (HAL_UART_Init(rn2483_uart) != HAL_OK) {
-        return RN2483_ERR_UART;
-    }
-    if (HAL_LIN_SendBreak(rn2483_uart) != HAL_OK) {
-        return RN2483_ERR_UART;
-    }
-    HAL_Delay(2U);
-    result = HAL_UART_Transmit(rn2483_uart, &sync, 1U, RN2483_RESPONSE_TIMEOUT_MS);
-    if (result == HAL_TIMEOUT) {
-        return RN2483_ERR_TIMEOUT;
-    }
-    if (result != HAL_OK) {
-        return result == HAL_BUSY ? RN2483_ERR_BUSY : RN2483_ERR_UART;
-    }
-    return RN2483_firmware((char[RN2483_MAX_BUFF]){0});
-}
-
-int RN2483_command(const char *command, char *response)
-{
-    size_t length;
-    int status;
-
-    if (command == NULL || response == NULL) {
-        return RN2483_ERR_PARAM;
-    }
-    length = strlen(command);
-    if (length < 2U || command[length - 2U] != '\r' || command[length - 1U] != '\n') {
-        return RN2483_ERR_PARAM;
-    }
-
-    status = write_command(command);
-    if (status != RN2483_SUCCESS) {
-        return status;
-    }
-    return RN2483_response(response, RN2483_RESPONSE_TIMEOUT_MS);
-}
-
-int RN2483_firmware(char *buff)
-{
-    return RN2483_command("sys get ver\r\n", buff);
-}
-
-int RN2483_initMAC(void)
-{
-    int status;
-
-    if (!configured(RN2483_FREQUENCY) || !configured(RN2483_DEV_ADDR) ||
-        !configured(RN2483_DEV_EUI) || !configured(RN2483_APP_EUI) ||
-        !configured(RN2483_APP_KEY) || !configured(RN2483_DATA_RATE)) {
-        return RN2483_ERR_KIDS;
-    }
-
-    const char * const commands[] = {
-        "mac reset " RN2483_FREQUENCY "\r\n",
-        "mac set devaddr " RN2483_DEV_ADDR "\r\n",
-        "mac set deveui " RN2483_DEV_EUI "\r\n",
-        "mac set appeui " RN2483_APP_EUI "\r\n",
-        "mac set appkey " RN2483_APP_KEY "\r\n",
-        "mac set dr " RN2483_DATA_RATE "\r\n",
-        "mac save\r\n",
-    };
-
-    for (size_t index = 0U; index < (sizeof(commands) / sizeof(commands[0])); ++index) {
-        status = command_expect_ok(commands[index]);
-        if (status != RN2483_SUCCESS) {
-            return status;
+            if (!device->discarding_line && device->line_length > 0U) {
+                if (device->line[device->line_length - 1U] == '\r') {
+                    device->line_length--;
+                }
+                device->line[device->line_length] = '\0';
+                handle_complete_line(device, device->line, now_ms);
+            } else if (device->discarding_line) {
+                device->stats.invalid_lines++;
+            }
+            device->line_length = 0U;
+            device->discarding_line = false;
+        } else if (!device->discarding_line) {
+            if (device->line_length < (RN2483_LINE_SIZE - 1U)) {
+                device->line[device->line_length++] = (char)byte;
+            } else {
+                device->line_length = 0U;
+                device->discarding_line = true;
+            }
         }
     }
-    return RN2483_SUCCESS;
 }
 
-int RN2483_join(RN2483_JoinMode mode)
+rn2483_status_t rn2483_init(rn2483_t *device,
+                            const rn2483_transport_t *transport,
+                            const rn2483_raw_config_t *config,
+                            uint32_t now_ms)
 {
-    char response[RN2483_MAX_BUFF];
-    int status;
+    if (device == NULL || transport == NULL || transport->transmit == NULL) {
+        return RN2483_ERROR_ARGUMENT;
+    }
+    if (!config_valid(config)) {
+        return RN2483_ERROR_CONFIGURATION;
+    }
 
-    if (mode == RN2483_OTAA) {
-        status = RN2483_command("mac join otaa\r\n", response);
-    } else if (mode == RN2483_ABP) {
-        status = RN2483_command("mac join abp\r\n", response);
-    } else {
-        return RN2483_ERR_PARAM;
+    memset(device, 0, sizeof(*device));
+    device->transport = *transport;
+    device->config = *config;
+    device->phase = RN2483_PHASE_CONFIGURE;
+    device->retry_at_ms = now_ms;
+    return RN2483_OK;
+}
+
+void rn2483_on_rx_byte(rn2483_t *device, uint8_t byte)
+{
+    if (device == NULL) {
+        return;
     }
-    if (status != RN2483_SUCCESS) {
-        return status;
+
+    const uint16_t next =
+        (uint16_t)((device->rx_head + 1U) % RN2483_RX_RING_SIZE);
+    if (next == device->rx_tail) {
+        device->stats.receive_overflows++;
+        return;
     }
-    if (strcmp(response, "ok\r\n") == 0) {
-        status = RN2483_response(response, RN2483_ASYNC_RESPONSE_TIMEOUT_MS);
-        if (status != RN2483_SUCCESS) {
-            return status;
+    device->rx_ring[device->rx_head] = byte;
+    device->rx_head = next;
+}
+
+void rn2483_process(rn2483_t *device, uint32_t now_ms)
+{
+    if (device == NULL || device->transport.transmit == NULL) {
+        return;
+    }
+
+    consume_received_bytes(device, now_ms);
+
+    if (device->phase == RN2483_PHASE_BACKOFF) {
+        if (!deadline_reached(now_ms, device->retry_at_ms)) {
+            return;
         }
-        return strcmp(response, "accepted\r\n") == 0 ? RN2483_SUCCESS : RN2483_DENIED;
+        device->phase = RN2483_PHASE_CONFIGURE;
+        device->configuration_step = 0U;
     }
-    if (strcmp(response, "keys_not_init\r\n") == 0) {
-        return RN2483_ERR_KIDS;
+
+    if (device->waiting_for_reply) {
+        if (deadline_reached(now_ms, device->deadline_ms)) {
+            device->stats.response_timeouts++;
+            enter_backoff(device, now_ms);
+        }
+        return;
     }
-    if (strcmp(response, "no_free_ch\r\n") == 0) {
-        return RN2483_ERR_BUSY;
+
+    if (device->phase == RN2483_PHASE_CONFIGURE) {
+        char command[RN2483_COMMAND_SIZE];
+        char expected[RN2483_LINE_SIZE];
+        expected_reply_t expected_type;
+        if (!build_configuration_command(device,
+                                         device->configuration_step,
+                                         command,
+                                         sizeof(command),
+                                         expected,
+                                         sizeof(expected),
+                                         &expected_type)) {
+            enter_backoff(device, now_ms);
+            return;
+        }
+        (void)transmit_command(device, command, now_ms);
+    } else if (device->phase == RN2483_PHASE_ARM_RECEIVER) {
+        (void)transmit_command(device, "radio rx 0\r\n", now_ms);
     }
-    if (strcmp(response, "silent\r\n") == 0 || strcmp(response, "busy\r\n") == 0 ||
-        strcmp(response, "mac_paused\r\n") == 0) {
-        return RN2483_ERR_STATE;
-    }
-    return RN2483_ERR_PANIC;
 }
 
-int RN2483_tx(const char *buff, bool confirm, char *downlink)
+rn2483_event_t rn2483_take_event(rn2483_t *device)
 {
-    char response[RN2483_MAX_BUFF];
-    char command[RN2483_MAX_COMMAND];
-    size_t length;
-    int max_length;
-    int written;
-    int status;
+    if (device == NULL) {
+        return RN2483_EVENT_NONE;
+    }
+    const rn2483_event_t event = device->pending_event;
+    device->pending_event = RN2483_EVENT_NONE;
+    return event;
+}
 
-    if (buff == NULL || !configured(RN2483_PORT)) {
-        return RN2483_ERR_PARAM;
-    }
-    length = strlen(buff);
-    max_length = max_payload_length();
-    if (max_length == 0 || length > (size_t)max_length) {
-        return RN2483_ERR_PARAM;
-    }
-
-    written = snprintf(command, sizeof(command), "mac tx %s %s ",
-                       confirm ? "cnf" : "uncnf", RN2483_PORT);
-    if (written < 0 || (size_t)written + (length * 2U) + 3U > sizeof(command)) {
-        return RN2483_ERR_PARAM;
-    }
-    for (size_t index = 0U; index < length; ++index) {
-        (void)snprintf(&command[written + (index * 2U)], 3U, "%02X", (unsigned char)buff[index]);
-    }
-    (void)snprintf(&command[written + (length * 2U)], 3U, "\r\n");
-
-    status = RN2483_command(command, response);
-    if (status != RN2483_SUCCESS) {
-        return status;
-    }
-    if (strcmp(response, "ok\r\n") != 0) {
-        if (strcmp(response, "invalid_param\r\n") == 0) return RN2483_ERR_PARAM;
-        if (strcmp(response, "no_free_ch\r\n") == 0) return RN2483_ERR_BUSY;
-        if (strcmp(response, "not_joined\r\n") == 0 ||
-            strcmp(response, "frame_counter_err_rejoin_needed\r\n") == 0) return RN2483_ERR_JOIN;
-        if (strcmp(response, "silent\r\n") == 0 || strcmp(response, "busy\r\n") == 0 ||
-            strcmp(response, "mac_paused\r\n") == 0) return RN2483_ERR_STATE;
-        return RN2483_ERR_PANIC;
-    }
-
-    status = RN2483_response(response, RN2483_ASYNC_RESPONSE_TIMEOUT_MS);
-    if (status != RN2483_SUCCESS) {
-        return status;
-    }
-    if (strcmp(response, "mac_tx_ok\r\n") == 0) return RN2483_NODOWN;
-    if (strcmp(response, "mac_err\r\n") == 0 || strcmp(response, "invalid_data_len\r\n") == 0) {
-        return RN2483_ERR_PANIC;
-    }
-    if (downlink != NULL)
-    {
-        memcpy(downlink, response, strlen(response) + 1U);
-    }
-
-    return RN2483_SUCCESS;
+bool rn2483_is_ready(const rn2483_t *device)
+{
+    return device != NULL && device->ready;
 }

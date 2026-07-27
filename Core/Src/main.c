@@ -21,11 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "accel/bmi088_accel.h"
-#include "accel/bmi088_accel_stm32.h"
-#include "rn2483.h"
-#include "uv/ltr390.h"
-#include "uv/ltr390_stm32.h"
+#include "payload_app.h"
 
 /* USER CODE END Includes */
 
@@ -36,16 +32,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define UV_SENSOR_COUNT 3U
-#define UV_POLL_INTERVAL_MS 10U
-#define UV_WINDOW_FACTOR 1.0f
 
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-//Radio Initialization code
-
 
 /* USER CODE END PM */
 
@@ -65,30 +56,6 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-bmi088_accel_t haccel;
-bmi088_accel_stm32_bus_t haccel_bus;
-volatile bmi088_accel_sample_t accel_latest_sample;
-volatile bmi088_accel_status_t accel_last_status =
-    BMI088_ACCEL_ERROR_NOT_INITIALIZED;
-volatile uint32_t accel_sample_count;
-volatile uint32_t accel_error_count;
-
-ltr390_t huv[UV_SENSOR_COUNT];
-ltr390_stm32_bus_t huv_bus[UV_SENSOR_COUNT];
-static I2C_HandleTypeDef *const uv_i2c_handles[UV_SENSOR_COUNT] = {
-    &hi2c1,
-    &hi2c2,
-    &hi2c3,
-};
-volatile ltr390_uvs_sample_t uv_latest_sample[UV_SENSOR_COUNT];
-volatile ltr390_status_t uv_last_status[UV_SENSOR_COUNT] = {
-    LTR390_ERROR_NOT_INITIALIZED,
-    LTR390_ERROR_NOT_INITIALIZED,
-    LTR390_ERROR_NOT_INITIALIZED,
-};
-volatile uint32_t uv_sample_count[UV_SENSOR_COUNT];
-volatile uint32_t uv_error_count[UV_SENSOR_COUNT];
-static uint32_t uv_next_poll_ms;
 
 /* USER CODE END PV */
 
@@ -151,41 +118,26 @@ int main(void)
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
-  RN2483_Init(&huart2);
   /* USER CODE BEGIN 2 */
-  accel_last_status = bmi088_accel_stm32_bind(&haccel,
-                                               &haccel_bus,
-                                               &hspi2,
-                                               ACC_CS_GPIO_Port,
-                                               ACC_CS_Pin,
-                                               10U);
-  if (accel_last_status == BMI088_ACCEL_OK)
+  /* PA1 is UVLED_CTRL/TIM2_CH2 in Payloads.ioc. One shared active-high
+     control turns on all three UV emitters. Force the preloaded compare
+  value into the active register before starting the channel. */
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, htim2.Init.Period);
+  if (HAL_TIM_GenerateEvent(&htim2, TIM_EVENTSOURCE_UPDATE) != HAL_OK)
   {
-    accel_last_status = bmi088_accel_init(&haccel,
-                                          &bmi088_accel_default_config);
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
   }
 
-  for (uint32_t sensor_index = 0U;
-       sensor_index < UV_SENSOR_COUNT;
-       sensor_index++)
-  {
-    ltr390_status_t status =
-        ltr390_stm32_bind(&huv[sensor_index],
-                          &huv_bus[sensor_index],
-                          uv_i2c_handles[sensor_index],
-                          10U);
-    if (status == LTR390_OK)
-    {
-      status = ltr390_init(&huv[sensor_index],
-                           &ltr390_default_uvs_config);
-    }
-    if (status != LTR390_OK)
-    {
-      uv_error_count[sensor_index]++;
-    }
-    uv_last_status[sensor_index] = status;
-  }
-  uv_next_poll_ms = HAL_GetTick();
+  payload_app_init(&hi2c1,
+                   &hi2c2,
+                   &hi2c3,
+                   &hspi1,
+                   &hspi2,
+                   &huart2);
 
   /* USER CODE END 2 */
 
@@ -194,76 +146,7 @@ int main(void)
   while (1)
   {
     /* USER CODE BEGIN 3 */
-
-    // (1) read accel data
-    if (haccel.initialized)
-    {
-      bool data_ready = false;
-      bmi088_accel_status_t status =
-          bmi088_accel_data_ready(&haccel, &data_ready);
-
-      if (status == BMI088_ACCEL_OK && data_ready)
-      {
-        bmi088_accel_sample_t sample;
-        status = bmi088_accel_read_sample(&haccel, &sample);
-        if (status == BMI088_ACCEL_OK)
-        {
-          accel_latest_sample = sample;
-          accel_sample_count++;
-        }
-      }
-
-      if (status != BMI088_ACCEL_OK)
-      {
-        accel_error_count++;
-      }
-      accel_last_status = status;
-    }
-
-    // (2) read uv data
-    const uint32_t now_ms = HAL_GetTick();
-    if ((int32_t)(now_ms - uv_next_poll_ms) >= 0)
-    {
-      uv_next_poll_ms = now_ms + UV_POLL_INTERVAL_MS;
-
-      for (uint32_t sensor_index = 0U;
-           sensor_index < UV_SENSOR_COUNT;
-           sensor_index++)
-      {
-        if (!huv[sensor_index].initialized)
-        {
-          continue;
-        }
-
-        bool data_ready = false;
-        ltr390_status_t status =
-            ltr390_data_ready(&huv[sensor_index], &data_ready);
-
-        if (status == LTR390_OK && data_ready)
-        {
-          ltr390_uvs_sample_t sample;
-          status = ltr390_read_uvs(&huv[sensor_index],
-                                   UV_WINDOW_FACTOR,
-                                   &sample);
-          if (status == LTR390_OK)
-          {
-            uv_latest_sample[sensor_index] = sample;
-            uv_sample_count[sensor_index]++;
-          }
-        }
-
-        if (status != LTR390_OK)
-        {
-          uv_error_count[sensor_index]++;
-        }
-        uv_last_status[sensor_index] = status;
-      }
-    }
-
-    // (3) write data to sd card
-    
-
-    // (4) read/write data to LoRa
+    payload_app_process();
 
     HAL_Delay(1U);
   }
@@ -847,6 +730,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  HAL_GPIO_WritePin(PUMP_CTRL_GPIO_Port, PUMP_CTRL_Pin, GPIO_PIN_RESET);
   __disable_irq();
   while (1)
   {

@@ -18,6 +18,8 @@ typedef struct {
     GPIO_TypeDef *chip_select_port;
     uint16_t chip_select_pin;
     uint32_t timeout_ms;
+    uint8_t tx_buffer[BMI088_ACCEL_FIFO_CAPACITY_BYTES + 6U];
+    uint8_t rx_buffer[BMI088_ACCEL_FIFO_CAPACITY_BYTES + 6U];
 } bmi088_accel_stm32_bus_t;
 
 /**

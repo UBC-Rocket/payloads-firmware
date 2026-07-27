@@ -3,7 +3,8 @@
 #include <string.h>
 
 #define BMI088_ACCEL_SPI_READ_BIT 0x80U
-#define BMI088_ACCEL_SPI_MAX_READ_LENGTH 6U
+#define BMI088_ACCEL_SPI_MAX_READ_LENGTH \
+    (BMI088_ACCEL_FIFO_CAPACITY_BYTES + 4U)
 #define BMI088_ACCEL_SPI_MAX_CLOCK_HZ 10000000U
 
 static uint32_t spi_prescaler_divisor(uint32_t prescaler)
@@ -45,18 +46,20 @@ static bool stm32_read(void *context,
 
     /* BMI088 accelerometer reads return one protocol dummy byte after the
        address. The requested register bytes start at rx[2]. */
-    uint8_t tx[BMI088_ACCEL_SPI_MAX_READ_LENGTH + 2U] = {0U};
-    uint8_t rx[BMI088_ACCEL_SPI_MAX_READ_LENGTH + 2U] = {0U};
-    tx[0] = (uint8_t)(first_register | BMI088_ACCEL_SPI_READ_BIT);
+    const size_t transfer_length = length + 2U;
+    memset(bus->tx_buffer, 0, transfer_length);
+    memset(bus->rx_buffer, 0, transfer_length);
+    bus->tx_buffer[0] =
+        (uint8_t)(first_register | BMI088_ACCEL_SPI_READ_BIT);
 
     HAL_GPIO_WritePin(bus->chip_select_port,
                       bus->chip_select_pin,
                       GPIO_PIN_RESET);
     const HAL_StatusTypeDef hal_status =
         HAL_SPI_TransmitReceive(bus->spi,
-                               tx,
-                               rx,
-                               (uint16_t)(length + 2U),
+                               bus->tx_buffer,
+                               bus->rx_buffer,
+                               (uint16_t)transfer_length,
                                bus->timeout_ms);
     HAL_GPIO_WritePin(bus->chip_select_port,
                       bus->chip_select_pin,
@@ -66,7 +69,7 @@ static bool stm32_read(void *context,
         return false;
     }
 
-    memcpy(data, &rx[2], length);
+    memcpy(data, &bus->rx_buffer[2], length);
     return true;
 }
 

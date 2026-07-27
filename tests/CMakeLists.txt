@@ -51,3 +51,67 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME ltr390 COMMAND test_ltr390)
+
+add_executable(test_rn2483
+    test_rn2483.c
+    ../Core/Src/rn2483.c
+)
+
+target_include_directories(test_rn2483 PRIVATE
+    ../Core/Inc
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_rn2483 PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
+endif()
+
+add_test(NAME rn2483 COMMAND test_rn2483)
+
+add_executable(test_sd_logger
+    test_sd_logger.c
+    ../Core/Src/storage/payload_log.c
+    ../Core/Src/storage/sd_logger.c
+)
+
+target_include_directories(test_sd_logger PRIVATE
+    ../Core/Inc
+    ../Middlewares/Third_Party/FatFs/src
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_sd_logger PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
+endif()
+
+add_test(NAME sd_logger COMMAND test_sd_logger)
+
+add_executable(test_sd_spi_diskio
+    test_sd_spi_diskio.c
+    ../Core/Src/storage/sd_spi_diskio.c
+)
+
+target_include_directories(test_sd_spi_diskio PRIVATE
+    stubs
+    ../Core/Inc
+    ../Middlewares/Third_Party/FatFs/src
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_sd_spi_diskio PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
+endif()
+
+add_test(NAME sd_spi_diskio COMMAND test_sd_spi_diskio)

@@ -1,77 +1,93 @@
 # Payloads firmware
 
-This is the firmware for UBC Rocket's Cloudburst payload, to be used in Launch Canada 2026. The architecture is fairly simple: we continuously read accelerometer and UV data, write the data to an SD card, while monitoring for commands from the LoRa radio module. In all honesty I don't know exactly what we're meant to be testing, but that means that you don't have to either to understand this codebase.   
+Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It
+continuously acquires the BMI088 accelerometer and one LTR390 UV sensor, drives
+the three UV emitters, logs timestamped records to the SD card, and controls the
+pump from validated RN2483 raw-LoRa commands.
 
-STM32G0B1CCT6 firmware generated with STM32CubeMX and built with CMake, Ninja,
-and the Arm GNU toolchain (and codex).
+`Payloads.ioc` is the hardware configuration source of truth and is not modified
+by the application code.
 
 ## Build
 
+The receiver must use the same raw-LoRa profile as the transmitter. CMake
+requires those values rather than silently building a receiver with guessed RF
+settings. For example:
+
 ```sh
-cmake --preset Debug
+cmake --preset Debug \
+  -DRN2483_RADIO_FREQ_HZ=868000000 \
+  -DRN2483_RADIO_SF=7 \
+  -DRN2483_RADIO_BW_KHZ=125 \
+  -DRN2483_RADIO_CR=5 \
+  -DRN2483_RADIO_SYNC_WORD=0x12
 cmake --build --preset Debug
 ```
 
-The firmware image is written to `build/Debug/Payloads.elf`.
+Replace the example values with the transmitter's frequency, spreading factor,
+bandwidth, coding-rate denominator, and sync byte. The ELF is written to
+`build/Debug/Payloads.elf`.
+
+## Runtime behavior
+
+- The BMI088 accelerometer on SPI2 runs at ±6 g, 100 Hz, and normal bandwidth.
+  Its 1024-byte FIFO is drained every 20 ms so short SD-card stalls do not lose
+  acquisition timing.
+- The single LTR390 is detected on the configured 100 kHz I2C1, I2C2, and I2C3
+  headers in that order. Once found, only that instance is sampled. It runs in
+  UV mode at 20-bit resolution, a 500 ms measurement period, and 18x gain.
+- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. Startup applies effectively
+  100% active-high PWM on this shared net, turning on all three UV emitters.
+- A preformatted FAT16 or FAT32 SD card on SPI1 is mounted without formatting.
+  Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
+  records in RAM, writes in batches, and synchronizes once per second. Failed
+  cards are retried every five seconds while acquisition continues.
+- USART2 uses the `.ioc` value of 115200 baud. Startup sends the RN2483 break
+  and `0x55` auto-baud sequence, pauses the MAC, applies and reads back the
+  required raw-LoRa profile, then enters continuous receive mode.
+- `PUMP_ON` sets PD2 high. `PUMP_OFF` sets PD2 low. These are the only accepted
+  radio payloads; malformed or unknown packets leave the pump unchanged. The
+  pump starts low and is also forced low by `Error_Handler`.
+
+The generated SPI1 setup in the `.ioc` is four-bit with hardware NSS. SD cards
+require eight-bit SPI mode 0 with software-controlled chip select, so the SD
+transport reinitializes SPI1 after `MX_SPI1_Init`: 250 kHz for card startup and
+8 MHz afterward, with PA4 driven as the card chip select. The peripheral and
+pin assignment still come directly from the `.ioc`.
+
+## Log format
+
+`time_ms` is monotonic milliseconds since MCU startup; there is no real-time
+clock in the `.ioc`. A row is emitted for every 100 Hz accelerometer sample:
+
+```text
+time_ms,accel_x_raw,accel_y_raw,accel_z_raw,uv_raw,accel_valid,uv_valid,uv_new,sensor_error_mask,pump_on,accel_fifo_skipped_total,log_dropped_total
+```
+
+`uv_valid` identifies whether the cached reading is valid and `uv_new`
+identifies the row that first records a new conversion. `uv_i2c_bus_number` is
+1, 2, or 3 for the detected connector and zero while the sensor is unavailable.
+Error and dropped-record counters make degraded operation visible instead of
+silently producing plausible-looking data.
 
 ## Host tests
 
-The bus-independent BMI088 and LTR390 register drivers can be tested without
-target hardware:
-
 ```sh
-cmake -S tests -B build/host-tests
+cmake -S tests -B build/host-tests -G Ninja
 cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 ```
 
-## BMI088 accelerometer
+The tests cover BMI088 FIFO parsing and SPI framing, the LTR390 driver,
+fragmented RN2483 replies and pump commands, buffered FatFs logging and
+recovery, and byte-level SDHC initialization/read/write behavior.
 
-The accelerometer uses SPI2 in mode 0 with 8-bit frames at 8 MHz. The STM32
-adapter handles the extra dummy response byte required by BMI088 accelerometer
-SPI reads. `main.c` initializes the device with the datasheet reset defaults
-(±6 g, 100 Hz, normal bandwidth) and polls the data-ready flag.
+Useful debugger globals include `accel_last_status`, `accel_latest_sample`,
+`accel_sample_count`, `accel_error_count`, `accel_fifo_skipped_total`,
+`uv_latest_sample`, `uv_last_status`, `uv_sample_count`, `uv_error_count`,
+`uv_i2c_bus_number`,
+`payload_sd_status`, `payload_log_dropped_count`, `payload_radio_ready`, and
+`payload_pump_on`.
 
-The current polling loop is intended for that 100 Hz default. Higher ODRs need
-an interrupt/FIFO acquisition path to avoid dropping samples, and any future
-device sharing SPI2 must serialize access around complete driver operations.
-
-These globals are useful during board bring-up in a debugger:
-
-- `accel_last_status`
-- `accel_latest_sample`
-- `accel_sample_count`
-- `accel_error_count`
-
-The software path is covered by host tests and the cross-compiled firmware
-build. Hardware validation should confirm chip ID `0x1E` and approximately
-1 g on the gravity-aligned axis while the board is stationary.
-
-Protocol details are defined in the
-[Bosch BMI088 datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi088-ds001.pdf).
-
-## LTR-390UV-01 light/UV sensor
-
-The LTR390 driver supports both ambient-light and UV modes over I2C at the
-device's fixed 7-bit address `0x53`. It checks the part ID, performs a software
-reset, configures resolution/rate/gain, verifies register readback, polls the
-new-data flag, and returns coherent 20-bit readings with lux or UVI conversion.
-
-`ltr390_default_uvs_config` selects UV mode, 20-bit resolution, a 500 ms
-measurement period, and 18x gain. This matches the conditions for the
-datasheet's 2300-count/UVI sensitivity. Use a window factor of `1.0f` for a
-clear/no-window setup and calibrate it for tinted optical windows.
-
-The board has one LTR390 on each 100 kHz I2C controller: I2C1 on PB8/PB7
-(SCL/SDA), I2C2 on PB10/PB11, and I2C3 on PB3/PB4. `main.c` initializes all
-three sensors and polls their new-data flags every 10 ms. The latest readings
-and diagnostics are available as indexed debugger globals:
-
-- `uv_latest_sample[0..2]`
-- `uv_last_status[0..2]`
-- `uv_sample_count[0..2]`
-- `uv_error_count[0..2]`
-
-The indices map to I2C1, I2C2, and I2C3 respectively. The adapter is blocking
-and shared-bus calls must be serialized. Protocol and conversion details are in
-`Docs/LTR-390UV_Final_ DS_V1 1.pdf`.
+Protocol references are the local copies in `Docs/` and the
+[Microchip RN2483 command reference](https://ww1.microchip.com/downloads/en/DeviceDoc/RN2483-LoRa-Technology-Module-Command-Reference-User-Guide-DS40001784G.pdf).

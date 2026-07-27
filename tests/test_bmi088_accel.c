@@ -11,8 +11,13 @@
 #define REG_STATUS 0x03U
 #define REG_DATA 0x12U
 #define REG_TEMPERATURE 0x22U
+#define REG_FIFO_LENGTH 0x24U
+#define REG_FIFO_DATA 0x26U
 #define REG_CONFIG 0x40U
 #define REG_RANGE 0x41U
+#define REG_FIFO_DOWNS 0x45U
+#define REG_FIFO_CONFIG_0 0x48U
+#define REG_FIFO_CONFIG_1 0x49U
 #define REG_POWER_CONFIG 0x7CU
 #define REG_POWER_CONTROL 0x7DU
 #define REG_SOFT_RESET 0x7EU
@@ -23,6 +28,8 @@ typedef struct {
     uint32_t delay_total_ms;
     size_t chip_id_reads;
     size_t writes;
+    uint8_t fifo[BMI088_ACCEL_FIFO_CAPACITY_BYTES + 4U];
+    uint16_t fifo_length;
     bool fail_reads;
     bool fail_writes;
 } fake_bus_t;
@@ -209,6 +216,17 @@ static bool fake_read(void *context,
             : bus->chip_id;
         return true;
     }
+    if (first_register == REG_FIFO_LENGTH && length == 2U) {
+        data[0] = (uint8_t)(bus->fifo_length & 0xFFU);
+        data[1] = (uint8_t)(bus->fifo_length >> 8U);
+        return true;
+    }
+    if (first_register == REG_FIFO_DATA &&
+        length <= sizeof(bus->fifo)) {
+        memcpy(data, bus->fifo, length);
+        bus->fifo_length = 0U;
+        return true;
+    }
 
     memcpy(data, &bus->registers[first_register], length);
     return true;
@@ -349,6 +367,51 @@ static void test_failures(void)
           BMI088_ACCEL_ERROR_COMMUNICATION);
 }
 
+static void test_fifo(void)
+{
+    fake_bus_t bus;
+    bmi088_accel_t device;
+    fake_bus_reset(&bus, BMI088_ACCEL_CHIP_ID);
+    CHECK(bind_fake_device(&device, &bus) == BMI088_ACCEL_OK);
+    CHECK(bmi088_accel_init(&device, &bmi088_accel_default_config) ==
+          BMI088_ACCEL_OK);
+    CHECK(bmi088_accel_fifo_enable(&device) == BMI088_ACCEL_OK);
+    CHECK(bus.registers[REG_FIFO_DOWNS] == 0x80U);
+    CHECK(bus.registers[REG_FIFO_CONFIG_0] == 0x02U);
+    CHECK(bus.registers[REG_FIFO_CONFIG_1] == 0x50U);
+
+    const uint8_t frames[] = {
+        0x84U, 0x00U, 0x40U, 0x00U, 0xC0U, 0xFFU, 0x7FU,
+        0x40U, 0x03U,
+        0x48U, 0x01U,
+        0x50U, 0x00U,
+        0x84U, 0x01U, 0x00U, 0x02U, 0x00U, 0x03U, 0x00U,
+        0x44U, 0x56U, 0x34U, 0x12U,
+    };
+    memcpy(bus.fifo, frames, sizeof(frames));
+    bus.fifo_length = (uint16_t)(sizeof(frames) - 4U);
+
+    bmi088_accel_fifo_batch_t batch;
+    CHECK(bmi088_accel_fifo_read(&device, &batch) == BMI088_ACCEL_OK);
+    CHECK(batch.fifo_bytes == sizeof(frames) - 4U);
+    CHECK(batch.sample_count == 2U);
+    CHECK(batch.samples[0].x == 16384);
+    CHECK(batch.samples[0].y == -16384);
+    CHECK(batch.samples[0].z == 32767);
+    CHECK(batch.samples[1].x == 1);
+    CHECK(batch.samples[1].y == 2);
+    CHECK(batch.samples[1].z == 3);
+    CHECK(batch.skipped_frames == 3U);
+    CHECK(batch.configuration_frames == 1U);
+    CHECK(batch.sample_drop_frames == 1U);
+    CHECK(batch.sensor_time_valid);
+    CHECK(batch.sensor_time_ticks == 0x123456U);
+    CHECK(batch.malformed_frames == 0U);
+
+    CHECK(bmi088_accel_fifo_disable(&device) == BMI088_ACCEL_OK);
+    CHECK(bus.registers[REG_FIFO_CONFIG_1] == 0x10U);
+}
+
 static void test_stm32_transport(void)
 {
     fake_hal_reset();
@@ -419,6 +482,7 @@ int main(void)
     test_initialization();
     test_sample_and_temperature();
     test_failures();
+    test_fifo();
     test_stm32_transport();
 
     if (failures != 0) {

@@ -19,6 +19,8 @@ extern "C" {
 #endif
 
 #define BMI088_ACCEL_CHIP_ID 0x1EU
+#define BMI088_ACCEL_FIFO_CAPACITY_BYTES 1024U
+#define BMI088_ACCEL_FIFO_MAX_SAMPLES 146U
 
 typedef enum {
     BMI088_ACCEL_OK = 0,
@@ -93,10 +95,24 @@ typedef struct {
 } bmi088_accel_sample_t;
 
 typedef struct {
+    bmi088_accel_sample_t samples[BMI088_ACCEL_FIFO_MAX_SAMPLES];
+    size_t sample_count;
+    uint32_t sensor_time_ticks;
+    uint16_t fifo_bytes;
+    uint16_t skipped_frames;
+    uint16_t sample_drop_frames;
+    uint16_t configuration_frames;
+    uint16_t malformed_frames;
+    bool sensor_time_valid;
+    bool more_data;
+} bmi088_accel_fifo_batch_t;
+
+typedef struct {
     bmi088_accel_transport_t transport;
     bmi088_accel_config_t config;
     float scale_mps2_per_lsb;
     bool initialized;
+    uint8_t fifo_buffer[BMI088_ACCEL_FIFO_CAPACITY_BYTES + 4U];
 } bmi088_accel_t;
 
 /**
@@ -134,9 +150,28 @@ bmi088_accel_status_t bmi088_accel_read_temperature(
     bmi088_accel_t *device,
     float *temperature_c);
 
+/**
+ * @brief Enable the accelerometer's 1024-byte FIFO in stream mode.
+ */
+bmi088_accel_status_t bmi088_accel_fifo_enable(bmi088_accel_t *device);
+
+/**
+ * @brief Disable and clear the accelerometer FIFO.
+ */
+bmi088_accel_status_t bmi088_accel_fifo_disable(bmi088_accel_t *device);
+
+/**
+ * @brief Drain and parse the currently buffered accelerometer FIFO frames.
+ *
+ * The batch is cleared before use. `more_data` is set when data arrived while
+ * the FIFO was being drained or the caller should immediately drain again.
+ */
+bmi088_accel_status_t bmi088_accel_fifo_read(
+    bmi088_accel_t *device,
+    bmi088_accel_fifo_batch_t *batch);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* BMI088_ACCEL_H */
-

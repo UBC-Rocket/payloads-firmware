@@ -26,6 +26,9 @@ typedef struct {
     uint32_t FirstBit;
     uint32_t TIMode;
     uint32_t CRCCalculation;
+    uint32_t CRCPolynomial;
+    uint32_t CRCLength;
+    uint32_t NSSPMode;
 } SPI_InitTypeDef;
 
 typedef struct {
@@ -44,6 +47,14 @@ typedef struct {
     uint32_t unused;
 } GPIO_TypeDef;
 
+typedef struct {
+    uint32_t Pin;
+    uint32_t Mode;
+    uint32_t Pull;
+    uint32_t Speed;
+    uint32_t Alternate;
+} GPIO_InitTypeDef;
+
 #define SPI_MODE_MASTER 0x01U
 #define SPI_DIRECTION_2LINES 0x02U
 #define SPI_DATASIZE_8BIT 0x08U
@@ -55,6 +66,8 @@ typedef struct {
 #define SPI_FIRSTBIT_MSB 0x00U
 #define SPI_TIMODE_DISABLE 0x00U
 #define SPI_CRCCALCULATION_DISABLE 0x00U
+#define SPI_CRC_LENGTH_DATASIZE 0x00U
+#define SPI_NSS_PULSE_DISABLE 0x00U
 
 #define SPI_BAUDRATEPRESCALER_2 2U
 #define SPI_BAUDRATEPRESCALER_4 4U
@@ -68,6 +81,14 @@ typedef struct {
 #define I2C_ADDRESSINGMODE_7BIT 0x01U
 #define I2C_ADDRESSINGMODE_10BIT 0x02U
 #define I2C_MEMADD_SIZE_8BIT 0x01U
+
+#define GPIO_MODE_OUTPUT_PP 0x01U
+#define GPIO_NOPULL 0x00U
+#define GPIO_SPEED_FREQ_HIGH 0x03U
+
+HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *spi);
+void HAL_GPIO_Init(GPIO_TypeDef *port, GPIO_InitTypeDef *init);
+uint32_t HAL_GetTick(void);
 
 void HAL_GPIO_WritePin(GPIO_TypeDef *port,
                        uint16_t pin,

@@ -28,9 +28,7 @@ const ltr390_config_t ltr390_default_als_config = {
     .gain = LTR390_GAIN_3X,
 };
 
-// resolution changes time necessary for reading
-// 20 bit = 400ms
-// 15 bit = 100ms? i think? double check maybe
+/* The 20-bit conversion takes 400 ms, so use a 500 ms measurement period. */
 const ltr390_config_t ltr390_default_uvs_config = {
     .mode = LTR390_MODE_UVS,
     .resolution = LTR390_RESOLUTION_20_BIT,

@@ -1,101 +1,114 @@
 /**
  * @file rn2483.h
- * @brief STM32 HAL driver interface for the Microchip RN2483 LoRaWAN module.
+ * @brief Nonblocking raw-LoRa command driver for the Microchip RN2483.
  */
 
 #ifndef RN2483_H
 #define RN2483_H
 
-#include "stm32g0xx_hal.h"
-
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
-/*
- * Buffer size includes space for the terminating '\0'
- * added by the driver after receiving an RN2483 response.
- */
 
-#define RN2483_MAX_BUFF 512U
-#define RN2483_MAX_COMMAND 512U
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/*
- * Credentials are empty by default, preventing secrets from being committed.
- * Override these macros through private build definitions before calling
- * RN2483_initMAC().  All values must be C string literals.
- */
-#ifndef RN2483_FREQUENCY
-#define RN2483_FREQUENCY ""
-#endif
-#ifndef RN2483_DEV_ADDR
-#define RN2483_DEV_ADDR ""
-#endif
-#ifndef RN2483_DEV_EUI
-#define RN2483_DEV_EUI ""
-#endif
-#ifndef RN2483_APP_EUI
-#define RN2483_APP_EUI ""
-#endif
-#ifndef RN2483_APP_KEY
-#define RN2483_APP_KEY ""
-#endif
-#ifndef RN2483_DATA_RATE
-#define RN2483_DATA_RATE ""
-#endif
-#ifndef RN2483_PORT
-#define RN2483_PORT ""
-#endif
+#define RN2483_RX_RING_SIZE 256U
+#define RN2483_LINE_SIZE 96U
+#define RN2483_COMMAND_SIZE 96U
 
 typedef enum {
-    RN2483_SUCCESS = 0,
-    RN2483_ERR_PARAM,
-    RN2483_EOB,
-    RN2483_ERR_KIDS,
-    RN2483_ERR_BUSY,
-    RN2483_ERR_STATE,
-    RN2483_DENIED,
-    RN2483_ERR_JOIN,
-    RN2483_NODOWN,
-    RN2483_ERR_PANIC,
-    RN2483_ERR_TIMEOUT = -10,
-    RN2483_ERR_UART = -11,
-} RN2483_ReturnCode;
+    RN2483_OK = 0,
+    RN2483_ERROR_ARGUMENT,
+    RN2483_ERROR_CONFIGURATION,
+    RN2483_ERROR_TRANSPORT
+} rn2483_status_t;
 
-
-/** Bind the driver to the UART wired to the RN2483 (USART2 on this board). */
-void RN2483_Init(UART_HandleTypeDef *uart);
-
-/** Issue `sys reset`; the board has no dedicated RN2483 reset GPIO. */
-int RN2483_reset(void);
-
-/**
- * Change the UART speed using the RN2483 break + 0x55 autobaud sequence.
- * Reconfigures the UART passed to RN2483_Init().
- */
-int RN2483_autobaud(int baud);
-
-/**
- * Send a CRLF-terminated RN2483 command and read its first response line.
- * `response` must point to an array of at least RN2483_MAX_BUFF characters.
- */
-int RN2483_command(const char *command, char *response);
-
-/** Read the module firmware string into a RN2483_MAX_BUFF-character buffer. */
-int RN2483_firmware(char *response);
-
-/** Apply the configured LoRaWAN parameters and save them to the module. */
-int RN2483_initMAC(void);
 typedef enum {
-    RN2483_OTAA = 0,
-    RN2483_ABP,
-} RN2483_JoinMode;
+    RN2483_EVENT_NONE = 0,
+    RN2483_EVENT_PUMP_ON,
+    RN2483_EVENT_PUMP_OFF
+} rn2483_event_t;
 
-/** Join the configured network through OTAA or ABP. */
-int RN2483_join(RN2483_JoinMode mode);
+typedef struct {
+    uint32_t frequency_hz;
+    uint8_t spreading_factor;
+    uint16_t bandwidth_khz;
+    uint8_t coding_rate_denominator;
+    uint8_t sync_word;
+} rn2483_raw_config_t;
+
+typedef bool (*rn2483_transmit_fn)(void *context,
+                                   const uint8_t *data,
+                                   size_t length);
+
+typedef struct {
+    rn2483_transmit_fn transmit;
+    void *context;
+} rn2483_transport_t;
+
+typedef struct {
+    uint32_t received_lines;
+    uint32_t invalid_lines;
+    uint32_t invalid_packets;
+    uint32_t transport_errors;
+    uint32_t response_timeouts;
+    uint32_t receive_overflows;
+    uint32_t restarts;
+    uint32_t valid_commands;
+} rn2483_stats_t;
+
+typedef enum {
+    RN2483_PHASE_CONFIGURE = 0,
+    RN2483_PHASE_ARM_RECEIVER,
+    RN2483_PHASE_LISTENING,
+    RN2483_PHASE_BACKOFF
+} rn2483_phase_t;
+
+typedef struct {
+    rn2483_transport_t transport;
+    rn2483_raw_config_t config;
+    rn2483_stats_t stats;
+    volatile uint16_t rx_head;
+    volatile uint16_t rx_tail;
+    uint8_t rx_ring[RN2483_RX_RING_SIZE];
+    char line[RN2483_LINE_SIZE];
+    size_t line_length;
+    uint8_t configuration_step;
+    uint32_t deadline_ms;
+    uint32_t retry_at_ms;
+    rn2483_event_t pending_event;
+    rn2483_phase_t phase;
+    bool waiting_for_reply;
+    bool discarding_line;
+    bool ready;
+} rn2483_t;
+
+rn2483_status_t rn2483_init(rn2483_t *device,
+                            const rn2483_transport_t *transport,
+                            const rn2483_raw_config_t *config,
+                            uint32_t now_ms);
 
 /**
- * Send an application payload.  `downlink`, when non-NULL, must point to an
- * array of at least RN2483_MAX_BUFF characters; it receives a `mac_rx` line.
+ * @brief Feed one UART byte from interrupt context.
  */
-int RN2483_tx(const char *payload, bool confirm, char *downlink);
+void rn2483_on_rx_byte(rn2483_t *device, uint8_t byte);
+
+/**
+ * @brief Advance configuration, reply parsing, timeout, and receive state.
+ */
+void rn2483_process(rn2483_t *device, uint32_t now_ms);
+
+/**
+ * @brief Return and clear the next validated pump command.
+ */
+rn2483_event_t rn2483_take_event(rn2483_t *device);
+
+bool rn2483_is_ready(const rn2483_t *device);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RN2483_H */
