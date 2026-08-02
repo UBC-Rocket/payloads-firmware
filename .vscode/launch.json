@@ -1,0 +1,89 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Payloads: debug from main (flash first)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/Payloads.elf",
+            "device": "STM32G0B1CCT6",
+            "svdFile": "${env:HOME}/st/stm32cubeide_2.0.0/plugins/com.st.stm32cube.ide.mcu.productdb.debug_2.2.300.202510101821/resources/cmsis/STMicroelectronics_CMSIS_SVD/STM32G0B1.svd",
+            "servertype": "openocd",
+            "serverpath": "/usr/bin/openocd",
+            "armToolchainPath": "${env:HOME}/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin",
+            "toolchainPrefix": "arm-none-eabi",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g0x.cfg"
+            ],
+            "openOCDLaunchCommands": [
+                "adapter speed 100",
+                "reset_config srst_only srst_nogate connect_assert_srst",
+                "init",
+                "reset halt"
+            ],
+            "preLaunchTask": "CMake: build Debug",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        },
+        {
+            "name": "Payloads: debug SD initialization (flash first)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/Payloads.elf",
+            "device": "STM32G0B1CCT6",
+            "svdFile": "${env:HOME}/st/stm32cubeide_2.0.0/plugins/com.st.stm32cube.ide.mcu.productdb.debug_2.2.300.202510101821/resources/cmsis/STMicroelectronics_CMSIS_SVD/STM32G0B1.svd",
+            "servertype": "openocd",
+            "serverpath": "/usr/bin/openocd",
+            "armToolchainPath": "${env:HOME}/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin",
+            "toolchainPrefix": "arm-none-eabi",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g0x.cfg"
+            ],
+            "openOCDLaunchCommands": [
+                "adapter speed 100",
+                "reset_config srst_only srst_nogate connect_assert_srst",
+                "init",
+                "reset halt"
+            ],
+            "preLaunchTask": "CMake: build Debug",
+            "runToEntryPoint": "disk_initialize",
+            "postLaunchCommands": [
+                "set print pretty on",
+                "display payload_sd_status",
+                "display sd_context.last_error",
+                "display sd_context.mode3",
+                "display logger.last_fatfs_result",
+                "display logger.mount_errors"
+            ],
+            "showDevDebugOutput": "none"
+        },
+        {
+            "name": "Payloads: attach without programming (reset/halt)",
+            "type": "cortex-debug",
+            "request": "attach",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/Payloads.elf",
+            "device": "STM32G0B1CCT6",
+            "svdFile": "${env:HOME}/st/stm32cubeide_2.0.0/plugins/com.st.stm32cube.ide.mcu.productdb.debug_2.2.300.202510101821/resources/cmsis/STMicroelectronics_CMSIS_SVD/STM32G0B1.svd",
+            "servertype": "openocd",
+            "serverpath": "/usr/bin/openocd",
+            "armToolchainPath": "${env:HOME}/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin",
+            "toolchainPrefix": "arm-none-eabi",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g0x.cfg"
+            ],
+            "openOCDLaunchCommands": [
+                "adapter speed 100",
+                "reset_config srst_only srst_nogate connect_assert_srst",
+                "init",
+                "reset halt"
+            ],
+            "showDevDebugOutput": "none"
+        }
+    ]
+}

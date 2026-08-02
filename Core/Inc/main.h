@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define BUZZER_GPIO_Port GPIOA
 #define UVLED_CTRL_Pin GPIO_PIN_1
 #define UVLED_CTRL_GPIO_Port GPIOA
+#define SD_CS_Pin GPIO_PIN_4
+#define SD_CS_GPIO_Port GPIOA
 #define CARD_DETECT_Pin GPIO_PIN_0
 #define CARD_DETECT_GPIO_Port GPIOB
 #define VBAT_SENSE_Pin GPIO_PIN_1

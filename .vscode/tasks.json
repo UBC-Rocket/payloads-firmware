@@ -18,14 +18,36 @@
             "args": [
                 "--build",
                 "--preset",
-                "Debug"
+                "Debug",
+                "--parallel"
             ],
             "dependsOn": "CMake: configure Debug",
+            "dependsOrder": "sequence",
             "problemMatcher": "$gcc",
             "group": {
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "label": "OpenOCD: flash Debug",
+            "type": "process",
+            "command": "/usr/bin/openocd",
+            "args": [
+                "-f",
+                "interface/stlink.cfg",
+                "-f",
+                "target/stm32g0x.cfg",
+                "-c",
+                "adapter speed 100",
+                "-c",
+                "reset_config srst_only srst_nogate connect_assert_srst",
+                "-c",
+                "program ${workspaceFolder}/build/Debug/Payloads.elf verify reset exit"
+            ],
+            "dependsOn": "CMake: build Debug",
+            "dependsOrder": "sequence",
+            "problemMatcher": []
         }
     ]
 }

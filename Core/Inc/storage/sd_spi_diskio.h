@@ -1,6 +1,6 @@
 /**
  * @file sd_spi_diskio.h
- * @brief FatFs disk I/O implementation for an SD card on STM32 SPI1.
+ * @brief FatFs disk I/O implementation for an SD card on STM32 SPI2.
  */
 
 #ifndef SD_SPI_DISKIO_H
@@ -24,7 +24,7 @@ bool sd_spi_diskio_bind(SPI_HandleTypeDef *spi,
                         uint16_t chip_select_pin);
 
 /**
- * Override the Cube startup settings at runtime without changing Payloads.ioc.
+ * Reapply the card's safe startup SPI and chip-select configuration.
  */
 bool sd_spi_configure_slow(void);
 bool sd_spi_set_data_speed(void);

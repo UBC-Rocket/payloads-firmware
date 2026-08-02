@@ -369,7 +369,9 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     initialize_accelerometer(now_ms);
     initialize_uv_sensor(now_ms);
 
-    (void)sd_spi_diskio_bind(payload_sd_spi, GPIOA, GPIO_PIN_4);
+    (void)sd_spi_diskio_bind(payload_sd_spi,
+                             SD_CS_GPIO_Port,
+                             SD_CS_Pin);
     sd_logger_init(&logger, now_ms);
 
     const rn2483_raw_config_t radio_config = {

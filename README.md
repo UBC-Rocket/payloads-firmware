@@ -25,7 +25,7 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
 
 ## Runtime behavior
 
-- The BMI088 accelerometer on SPI2 runs at ±6 g, 100 Hz, and normal bandwidth.
+- The BMI088 accelerometer on SPI1 runs at ±6 g, 100 Hz, and normal bandwidth.
   Its 1024-byte FIFO is drained every 20 ms so short SD-card stalls do not lose
   acquisition timing.
 - The single LTR390 is detected on the configured 100 kHz I2C1, I2C2, and I2C3
@@ -34,7 +34,7 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
 - PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. A runtime override in the
   protected user-code section runs it at 1 kHz with a 10% active-high LED-on
   interval on the shared UV-emitter control net.
-- A preformatted FAT16 or FAT32 SD card on SPI1 is mounted without formatting.
+- A preformatted FAT16 or FAT32 SD card on SPI2 is mounted without formatting.
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
   cards are retried every five seconds while acquisition continues.
@@ -45,11 +45,14 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
   radio payloads; malformed or unknown packets leave the pump unchanged. The
   pump starts low and is also forced low by `Error_Handler`.
 
-The generated SPI1 setup in the `.ioc` is four-bit with hardware NSS. SD cards
-require eight-bit SPI mode 0 with software-controlled chip select, so the SD
-transport reinitializes SPI1 after `MX_SPI1_Init`: 250 kHz for card startup and
-8 MHz afterward, with PA4 driven as the card chip select. The peripheral and
-pin assignment still come directly from the `.ioc`.
+SPI2 is configured in the `.ioc` for eight-bit SPI mode 0 at 250 kHz with
+software-controlled chip select. PA4 is an initially-high `SD_CS` GPIO, and
+PB13 through PB15 are high-speed SPI2 pins, with a pull-up on PB14/SD MISO so the
+line has a defined idle level while the card's output is high impedance. The SD
+transport reapplies the startup configuration on retries and switches SPI2 to
+8 MHz after card initialization.
+Initialization tries SPI mode 0 first, then retries CMD0 in SPI mode 3 when the
+card does not respond; the successful mode is retained at data speed.
 
 ## Log format
 

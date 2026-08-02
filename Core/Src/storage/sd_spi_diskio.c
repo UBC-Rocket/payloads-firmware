@@ -6,10 +6,13 @@
 
 #define SD_SPI_DRIVE 0U
 #define SD_SPI_SECTOR_SIZE 512U
-#define SD_SPI_INITIALIZATION_TIMEOUT_MS 1500U
+#define SD_SPI_POWER_UP_DELAY_MS 10U
+#define SD_SPI_IDLE_ENTRY_TIMEOUT_MS 1000U
+#define SD_SPI_INITIALIZATION_TIMEOUT_MS 3000U
 #define SD_SPI_READY_TIMEOUT_MS 500U
 #define SD_SPI_TOKEN_TIMEOUT_MS 300U
 #define SD_SPI_HAL_TIMEOUT_MS 20U
+#define SD_SPI_TRACE_CAPACITY 256U
 
 #define SD_CARD_TYPE_MMC 0x01U
 #define SD_CARD_TYPE_SD1 0x02U
@@ -40,12 +43,20 @@ typedef struct {
     uint8_t card_type;
     sd_spi_error_t last_error;
     bool bound;
+    bool mode3;
+    bool selected;
 } sd_spi_context_t;
 
 static sd_spi_context_t sd_context = {
     .status = STA_NOINIT,
     .last_error = SD_SPI_ERROR_NOT_BOUND,
 };
+
+volatile uint16_t sd_spi_trace_count;
+volatile uint8_t sd_spi_trace_tx[SD_SPI_TRACE_CAPACITY];
+volatile uint8_t sd_spi_trace_rx[SD_SPI_TRACE_CAPACITY];
+volatile uint8_t sd_spi_trace_hal_status[SD_SPI_TRACE_CAPACITY];
+static bool sd_spi_trace_complete;
 
 static bool elapsed(uint32_t started_ms, uint32_t timeout_ms)
 {
@@ -63,8 +74,10 @@ static bool configure_spi(uint32_t prescaler)
     spi->Init.Mode = SPI_MODE_MASTER;
     spi->Init.Direction = SPI_DIRECTION_2LINES;
     spi->Init.DataSize = SPI_DATASIZE_8BIT;
-    spi->Init.CLKPolarity = SPI_POLARITY_LOW;
-    spi->Init.CLKPhase = SPI_PHASE_1EDGE;
+    spi->Init.CLKPolarity =
+        sd_context.mode3 ? SPI_POLARITY_HIGH : SPI_POLARITY_LOW;
+    spi->Init.CLKPhase =
+        sd_context.mode3 ? SPI_PHASE_2EDGE : SPI_PHASE_1EDGE;
     spi->Init.NSS = SPI_NSS_SOFT;
     spi->Init.BaudRatePrescaler = prescaler;
     spi->Init.FirstBit = SPI_FIRSTBIT_MSB;
@@ -95,25 +108,35 @@ bool sd_spi_diskio_bind(SPI_HandleTypeDef *spi,
     sd_context.card_type = 0U;
     sd_context.last_error = SD_SPI_ERROR_NONE;
     sd_context.bound = true;
+    sd_context.mode3 = false;
+    sd_context.selected = false;
     return true;
 }
 
 bool sd_spi_configure_slow(void)
 {
-    if (!configure_spi(SPI_BAUDRATEPRESCALER_256)) {
+    sd_context.mode3 = false;
+    if (!sd_context.bound ||
+        sd_context.chip_select_port == NULL ||
+        sd_context.chip_select_pin == 0U) {
+        sd_context.last_error = SD_SPI_ERROR_NOT_BOUND;
         return false;
     }
 
+    /*
+     * Preload and take ownership of CS before reconfiguring SPI so the card
+     * remains deselected throughout the peripheral reset.
+     */
+    HAL_GPIO_WritePin(sd_context.chip_select_port,
+                      sd_context.chip_select_pin,
+                      GPIO_PIN_SET);
     GPIO_InitTypeDef gpio = {0};
     gpio.Pin = sd_context.chip_select_pin;
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(sd_context.chip_select_port, &gpio);
-    HAL_GPIO_WritePin(sd_context.chip_select_port,
-                      sd_context.chip_select_pin,
-                      GPIO_PIN_SET);
-    return true;
+    return configure_spi(SPI_BAUDRATEPRESCALER_256);
 }
 
 bool sd_spi_set_data_speed(void)
@@ -129,11 +152,20 @@ sd_spi_error_t sd_spi_last_error(void)
 static uint8_t exchange_byte(uint8_t transmitted)
 {
     uint8_t received = 0xFFU;
-    if (HAL_SPI_TransmitReceive(sd_context.spi,
-                               &transmitted,
-                               &received,
-                               1U,
-                               SD_SPI_HAL_TIMEOUT_MS) != HAL_OK) {
+    const HAL_StatusTypeDef hal_status =
+        HAL_SPI_TransmitReceive(sd_context.spi,
+                                &transmitted,
+                                &received,
+                                1U,
+                                SD_SPI_HAL_TIMEOUT_MS);
+    if (!sd_spi_trace_complete &&
+        sd_spi_trace_count < SD_SPI_TRACE_CAPACITY) {
+        const uint16_t index = sd_spi_trace_count++;
+        sd_spi_trace_tx[index] = transmitted;
+        sd_spi_trace_rx[index] = received;
+        sd_spi_trace_hal_status[index] = (uint8_t)hal_status;
+    }
+    if (hal_status != HAL_OK) {
         sd_context.last_error = SD_SPI_ERROR_HAL;
         return 0xFFU;
     }
@@ -145,6 +177,7 @@ static void deselect_card(void)
     HAL_GPIO_WritePin(sd_context.chip_select_port,
                       sd_context.chip_select_pin,
                       GPIO_PIN_SET);
+    sd_context.selected = false;
     (void)exchange_byte(0xFFU);
 }
 
@@ -166,6 +199,7 @@ static bool select_card(void)
     HAL_GPIO_WritePin(sd_context.chip_select_port,
                       sd_context.chip_select_pin,
                       GPIO_PIN_RESET);
+    sd_context.selected = true;
     (void)exchange_byte(0xFFU);
     if (wait_ready(SD_SPI_READY_TIMEOUT_MS)) {
         return true;
@@ -184,8 +218,7 @@ static uint8_t send_command(uint8_t command, uint32_t argument)
         }
     }
 
-    if (command != SD_CMD12) {
-        deselect_card();
+    if (command != SD_CMD12 && !sd_context.selected) {
         if (!select_card()) {
             return 0xFFU;
         }
@@ -264,6 +297,29 @@ static bool transmit_data_block(const uint8_t *buffer, uint8_t token)
     return wait_ready(SD_SPI_READY_TIMEOUT_MS);
 }
 
+static void send_startup_clocks(void)
+{
+    deselect_card();
+    HAL_Delay(SD_SPI_POWER_UP_DELAY_MS);
+    for (uint8_t clocks = 0U; clocks < 10U; clocks++) {
+        (void)exchange_byte(0xFFU);
+    }
+}
+
+static uint8_t enter_idle_state(void)
+{
+    uint8_t response = 0xFFU;
+    const uint32_t started_ms = HAL_GetTick();
+    do {
+        response = send_command(SD_CMD0, 0U);
+        if (response != 1U) {
+            HAL_Delay(1U);
+        }
+    } while (response != 1U &&
+             !elapsed(started_ms, SD_SPI_IDLE_ENTRY_TIMEOUT_MS));
+    return response;
+}
+
 DSTATUS disk_initialize(BYTE physical_drive)
 {
     if (physical_drive != SD_SPI_DRIVE || !sd_context.bound) {
@@ -272,17 +328,27 @@ DSTATUS disk_initialize(BYTE physical_drive)
     sd_context.status = STA_NOINIT;
     sd_context.card_type = 0U;
     sd_context.last_error = SD_SPI_ERROR_NONE;
+    if (!sd_spi_trace_complete) {
+        sd_spi_trace_count = 0U;
+    }
     if (!sd_spi_configure_slow()) {
         return sd_context.status;
     }
 
-    deselect_card();
-    for (uint8_t clocks = 0U; clocks < 10U; clocks++) {
-        (void)exchange_byte(0xFFU);
+    uint8_t type = 0U;
+    send_startup_clocks();
+    uint8_t idle_response = enter_idle_state();
+    if (idle_response != 1U) {
+        deselect_card();
+        sd_context.mode3 = true;
+        if (configure_spi(SPI_BAUDRATEPRESCALER_256)) {
+            send_startup_clocks();
+            idle_response = enter_idle_state();
+        }
     }
 
-    uint8_t type = 0U;
-    if (send_command(SD_CMD0, 0U) == 1U) {
+    if (idle_response == 1U) {
+        sd_context.last_error = SD_SPI_ERROR_NONE;
         const uint32_t started_ms = HAL_GetTick();
         if (send_command(SD_CMD8, 0x1AAU) == 1U) {
             uint8_t ocr[4];
@@ -333,6 +399,7 @@ DSTATUS disk_initialize(BYTE physical_drive)
     } else if (sd_context.last_error == SD_SPI_ERROR_NONE) {
         sd_context.last_error = SD_SPI_ERROR_PROTOCOL;
     }
+    sd_spi_trace_complete = true;
     return sd_context.status;
 }
 

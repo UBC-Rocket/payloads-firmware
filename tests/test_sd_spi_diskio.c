@@ -22,6 +22,12 @@ static uint8_t written_sector[512];
 static uint32_t fake_tick;
 static uint32_t init_calls;
 static uint32_t gpio_init_calls;
+static uint32_t cmd0_count;
+static uint32_t cmd0_failures_remaining;
+static bool configured_mode3;
+static bool require_mode3;
+static bool spi_initialized_while_selected;
+static uint32_t select_count;
 
 #define CHECK(condition)                                                      \
     do {                                                                      \
@@ -60,7 +66,15 @@ static void handle_command(void)
     const uint8_t command = (uint8_t)(command_bytes[0] & 0x3FU);
     switch (command) {
     case 0U:
-        queue_byte(1U);
+        cmd0_count++;
+        if (require_mode3 && !configured_mode3) {
+            queue_byte(0xFFU);
+        } else if (cmd0_failures_remaining > 0U) {
+            cmd0_failures_remaining--;
+            queue_byte(0xFFU);
+        } else {
+            queue_byte(1U);
+        }
         break;
     case 8U:
         queue_byte(1U);
@@ -110,8 +124,11 @@ static void handle_command(void)
 
 HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *spi)
 {
-    (void)spi;
     init_calls++;
+    spi_initialized_while_selected |= card_selected;
+    configured_mode3 =
+        spi->Init.CLKPolarity == SPI_POLARITY_HIGH &&
+        spi->Init.CLKPhase == SPI_PHASE_2EDGE;
     return HAL_OK;
 }
 
@@ -129,6 +146,9 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *port,
     (void)port;
     (void)pin;
     card_selected = state == GPIO_PIN_RESET;
+    if (card_selected) {
+        select_count++;
+    }
     if (!card_selected) {
         command_length = 0U;
     }
@@ -178,6 +198,11 @@ uint32_t HAL_GetTick(void)
     return fake_tick++;
 }
 
+void HAL_Delay(uint32_t milliseconds)
+{
+    fake_tick += milliseconds;
+}
+
 static void reset_fake(void)
 {
     response_head = 0U;
@@ -189,22 +214,36 @@ static void reset_fake(void)
     fake_tick = 0U;
     init_calls = 0U;
     gpio_init_calls = 0U;
+    cmd0_count = 0U;
+    cmd0_failures_remaining = 0U;
+    configured_mode3 = false;
+    require_mode3 = false;
+    spi_initialized_while_selected = false;
+    select_count = 0U;
     memset(written_sector, 0, sizeof(written_sector));
 }
 
 int main(void)
 {
     reset_fake();
+    CHECK(!sd_spi_configure_slow());
+    CHECK(sd_spi_last_error() == SD_SPI_ERROR_NOT_BOUND);
+
     SPI_HandleTypeDef spi = {0};
     GPIO_TypeDef port = {0};
     CHECK(sd_spi_diskio_bind(&spi, &port, 1U));
+    card_selected = true;
     CHECK(sd_spi_configure_slow());
+    CHECK(!spi_initialized_while_selected);
     CHECK(spi.Init.DataSize == SPI_DATASIZE_8BIT);
     CHECK(spi.Init.NSS == SPI_NSS_SOFT);
     CHECK(spi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256);
     CHECK(gpio_init_calls == 1U);
 
+    cmd0_failures_remaining = 2U;
     CHECK(disk_initialize(0U) == 0U);
+    CHECK(cmd0_count == 3U);
+    CHECK(select_count == 1U);
     CHECK(spi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_8);
     CHECK(init_calls >= 3U);
 
@@ -227,6 +266,17 @@ int main(void)
     DWORD sector_count = 0U;
     CHECK(disk_ioctl(0U, GET_SECTOR_COUNT, &sector_count) == RES_OK);
     CHECK(sector_count == 4096U);
+
+    reset_fake();
+    SPI_HandleTypeDef mode3_spi = {0};
+    require_mode3 = true;
+    CHECK(sd_spi_diskio_bind(&mode3_spi, &port, 1U));
+    CHECK(disk_initialize(0U) == 0U);
+    CHECK(cmd0_count > 1U);
+    CHECK(configured_mode3);
+    CHECK(mode3_spi.Init.CLKPolarity == SPI_POLARITY_HIGH);
+    CHECK(mode3_spi.Init.CLKPhase == SPI_PHASE_2EDGE);
+    CHECK(mode3_spi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_8);
 
     if (failures != 0) {
         fprintf(stderr, "%d SD SPI test(s) failed\n", failures);
