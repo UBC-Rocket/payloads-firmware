@@ -141,19 +141,20 @@ static void test_configuration_and_commands(void)
     CHECK(rn2483_init(&device, &transport, &config, now_ms) == RN2483_OK);
     configure_to_listening(&device, &fake, &now_ms);
 
-    feed_line(&device, "radio_rx 50554D505F4F4E");
+    /* RN2483 1.0.4 places two spaces between radio_rx and the payload. */
+    feed_line(&device, "radio_rx  50554D505F4F4E");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_ON);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
-    CHECK(strcmp(device.last_line, "radio_rx 50554D505F4F4E") == 0);
+    CHECK(strcmp(device.last_line, "radio_rx  50554D505F4F4E") == 0);
     CHECK(strcmp(fake.last_command, "radio rx 0\r\n") == 0);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_is_ready(&device));
 
-    feed_line(&device, "radio_rx 50554D505F4F4646");
+    feed_line(&device, "radio_rx   50554D505F4F4646");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_OFF);

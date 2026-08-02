@@ -278,12 +278,19 @@ static bool configuration_reply_matches(const rn2483_t *device,
 
 static bool radio_payload_matches(const char *line, const char *payload_hex)
 {
-    static const char prefix[] = "radio_rx ";
+    static const char prefix[] = "radio_rx";
     if (strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
         return false;
     }
 
     const char *payload = line + (sizeof(prefix) - 1U);
+    if (*payload != ' ') {
+        return false;
+    }
+    while (*payload == ' ') {
+        payload++;
+    }
+
     const size_t payload_length = strlen(payload_hex);
     if (strncmp(payload, payload_hex, payload_length) != 0) {
         return false;

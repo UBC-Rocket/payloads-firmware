@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -34,7 +35,12 @@
 /* USER CODE BEGIN PD */
 #define RN2483_BAUDRATE      57600U
 #define RN2483_RESP_TIMEOUT  1000U   /* ms, for the immediate command response */
-#define RN2483_RX_WDT_MS     15000U  /* radio watchdog: one listen window */
+#define RN2483_RX_WDT_MS     2000U   /* short slices keep serial commands responsive */
+#define RN2483_TX_TIMEOUT_MS 10000U
+#define SERIAL_COMMAND_SIZE  16U
+#define SERIAL_QUEUE_DEPTH   2U
+#define SILENCE_LOG_MS       15000U
+#define PUMP_COMMAND_REPEATS 3U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,6 +54,16 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 UART_HandleTypeDef huart1; /* RN2483 LoRa module, PA9/PA10 = D8/D2 */
 static uint32_t rx_count = 0;
+static uint8_t serial_rx_byte;
+static volatile char serial_input[SERIAL_COMMAND_SIZE];
+static volatile uint8_t serial_input_length;
+static volatile bool serial_command_discarding;
+static volatile bool serial_command_overflow;
+static volatile char serial_queue[SERIAL_QUEUE_DEPTH][SERIAL_COMMAND_SIZE];
+static volatile uint8_t serial_queue_length[SERIAL_QUEUE_DEPTH];
+static volatile uint8_t serial_queue_head;
+static volatile uint8_t serial_queue_tail;
+static volatile uint8_t serial_queue_count;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,6 +77,9 @@ static void RN2483_Flush(void);
 static HAL_StatusTypeDef RN2483_ReadLine(char *buf, uint16_t size, uint32_t timeout);
 static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t size, uint32_t timeout);
 static void RN2483_CommandChecked(const char *cmd);
+static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
+static void Serial_Command_Init(void);
+static bool Serial_TakeCommand(char *command, uint16_t command_size);
 static int Hex_Nibble(char c);
 /* USER CODE END PFP */
 
@@ -186,6 +205,177 @@ static void RN2483_CommandChecked(const char *cmd)
 }
 
 /**
+  * @brief Send an ASCII payload with the RN2483 raw-LoRa radio command.
+  *        The immediate "ok" and final "radio_tx_ok" are both required.
+  */
+static HAL_StatusTypeDef RN2483_TransmitText(const char *text,
+                                             char *detail,
+                                             uint16_t detail_size)
+{
+  static const char hex_digits[] = "0123456789ABCDEF";
+  char command[80] = "radio tx ";
+  const size_t prefix_length = strlen(command);
+  const size_t text_length = strlen(text);
+
+  if (detail == NULL || detail_size == 0U)
+  {
+    return HAL_ERROR;
+  }
+  detail[0] = '\0';
+
+  if (text_length == 0U ||
+      prefix_length + (text_length * 2U) >= sizeof(command))
+  {
+    snprintf(detail, detail_size, "payload_too_long");
+    return HAL_ERROR;
+  }
+
+  for (size_t i = 0; i < text_length; i++)
+  {
+    const uint8_t byte = (uint8_t)text[i];
+    command[prefix_length + (i * 2U)] = hex_digits[byte >> 4];
+    command[prefix_length + (i * 2U) + 1U] = hex_digits[byte & 0x0FU];
+  }
+  command[prefix_length + (text_length * 2U)] = '\0';
+
+  if (RN2483_Command(command, detail, detail_size,
+                     RN2483_RESP_TIMEOUT) != HAL_OK)
+  {
+    snprintf(detail, detail_size, "immediate_timeout");
+    return HAL_TIMEOUT;
+  }
+  if (strcmp(detail, "ok") != 0)
+  {
+    return HAL_ERROR;
+  }
+
+  if (RN2483_ReadLine(detail, detail_size,
+                      RN2483_TX_TIMEOUT_MS) != HAL_OK)
+  {
+    snprintf(detail, detail_size, "transmit_timeout");
+    return HAL_TIMEOUT;
+  }
+  return strcmp(detail, "radio_tx_ok") == 0 ? HAL_OK : HAL_ERROR;
+}
+
+/**
+  * @brief Arm interrupt-driven reception on the ST-Link VCP (USART2).
+  */
+static void Serial_Command_Init(void)
+{
+  serial_input_length = 0U;
+  serial_command_discarding = false;
+  serial_command_overflow = false;
+  serial_queue_head = 0U;
+  serial_queue_tail = 0U;
+  serial_queue_count = 0U;
+
+  HAL_NVIC_SetPriority(USART2_IRQn, 1U, 0U);
+  HAL_NVIC_EnableIRQ(USART2_IRQn);
+  if (HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief Copy one complete serial line out of the interrupt-owned buffer.
+  */
+static bool Serial_TakeCommand(char *command, uint16_t command_size)
+{
+  if (command == NULL || command_size == 0U || serial_queue_count == 0U)
+  {
+    return false;
+  }
+
+  __disable_irq();
+  const uint8_t slot = serial_queue_tail;
+  uint8_t length = serial_queue_length[slot];
+  if (length >= command_size)
+  {
+    length = (uint8_t)(command_size - 1U);
+  }
+  for (uint8_t index = 0U; index < length; index++)
+  {
+    command[index] = serial_queue[slot][index];
+  }
+  command[length] = '\0';
+  serial_queue_tail = (uint8_t)((serial_queue_tail + 1U) % SERIAL_QUEUE_DEPTH);
+  serial_queue_count--;
+  __enable_irq();
+  return true;
+}
+
+/**
+  * @brief Assemble CR/LF-terminated WebSerial commands without blocking the
+  *        RN2483 receive wait in the main loop.
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart != &huart2)
+  {
+    return;
+  }
+
+  const uint8_t byte = serial_rx_byte;
+  if (byte == '\n')
+  {
+    if (serial_command_discarding)
+    {
+      serial_command_discarding = false;
+      serial_command_overflow = true;
+      serial_input_length = 0U;
+    }
+    else if (serial_input_length > 0U)
+    {
+      if (serial_queue_count < SERIAL_QUEUE_DEPTH)
+      {
+        const uint8_t slot = serial_queue_head;
+        for (uint8_t index = 0U; index < serial_input_length; index++)
+        {
+          serial_queue[slot][index] = serial_input[index];
+        }
+        serial_queue[slot][serial_input_length] = '\0';
+        serial_queue_length[slot] = serial_input_length;
+        serial_queue_head =
+            (uint8_t)((serial_queue_head + 1U) % SERIAL_QUEUE_DEPTH);
+        serial_queue_count++;
+      }
+      else
+      {
+        serial_command_overflow = true;
+      }
+      serial_input_length = 0U;
+    }
+  }
+  else if (byte >= 0x20U && byte <= 0x7EU && !serial_command_discarding)
+  {
+    if (serial_input_length < (SERIAL_COMMAND_SIZE - 1U))
+    {
+      serial_input[serial_input_length++] = (char)byte;
+    }
+    else
+    {
+      serial_command_discarding = true;
+      serial_input_length = 0U;
+    }
+  }
+
+  (void)HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U);
+}
+
+/**
+  * @brief Recover VCP reception after an overrun/noise/framing error.
+  */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+  if (huart == &huart2)
+  {
+    (void)HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U);
+  }
+}
+
+/**
   * @brief Hex digit -> value, or -1 if not a hex digit.
   */
 static int Hex_Nibble(char c)
@@ -228,6 +418,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  Serial_Command_Init();
   Debug_Log("range-test RX: booting");
 
   RN2483_UART_Init();
@@ -293,10 +484,18 @@ int main(void)
   RN2483_CommandChecked("radio set mod lora");
   RN2483_CommandChecked("radio set freq 433575000"); /* 433 band - matches the antennas */
   RN2483_CommandChecked("radio set sf sf12");
+  RN2483_CommandChecked("radio set bw 125");
+  RN2483_CommandChecked("radio set cr 4/5");
+  RN2483_CommandChecked("radio set crc on");
+  RN2483_CommandChecked("radio set iqi off");
+  RN2483_CommandChecked("radio set prlen 8");
+  RN2483_CommandChecked("radio set sync 34");
+  RN2483_CommandChecked("radio set pwr 14");
   /* Watchdog: each listen window ends with radio_err after this many ms,
      so the loop stays alive and can re-arm even if nothing is heard. */
-  RN2483_CommandChecked("radio set wdt 15000");
-  Debug_Log("radio configured: 433.575 MHz, SF12 - listening");
+  RN2483_CommandChecked("radio set wdt 2000");
+  Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
+  Debug_Log("bridge serial ready: send PUMP_ON or PUMP_OFF at 115200");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -306,6 +505,80 @@ int main(void)
     char resp[32];
     char line[160];
     char out[160];
+    char serial_line[SERIAL_COMMAND_SIZE];
+    static uint32_t last_silence_log_ms = 0U;
+
+    if (serial_command_overflow)
+    {
+      __disable_irq();
+      serial_command_overflow = false;
+      __enable_irq();
+      Debug_Log("BRIDGE SERIAL ERROR input dropped");
+    }
+
+    /* A complete VCP line is handled only between LoRa receive windows, when
+       the module is idle and can safely switch from RX to TX. */
+    if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
+    {
+      if (strcmp(serial_line, "PUMP_ON") == 0 ||
+          strcmp(serial_line, "PUMP_OFF") == 0)
+      {
+        char detail[32];
+        HAL_StatusTypeDef transmit_status = HAL_OK;
+        uint8_t transmissions = 0U;
+        snprintf(out, sizeof(out), "BRIDGE SERIAL RX len=%u \"%s\"",
+                 (unsigned int)strlen(serial_line), serial_line);
+        Debug_Log(out);
+
+        /* Pump commands are idempotent; repeat them for extra link margin. */
+        for (uint8_t attempt = 0U; attempt < PUMP_COMMAND_REPEATS; attempt++)
+        {
+          transmit_status = RN2483_TransmitText(serial_line,
+                                                detail,
+                                                sizeof(detail));
+          if (transmit_status != HAL_OK)
+          {
+            break;
+          }
+          transmissions++;
+          if (attempt + 1U < PUMP_COMMAND_REPEATS)
+          {
+            HAL_Delay(250U);
+          }
+        }
+
+        if (transmit_status == HAL_OK && transmissions == PUMP_COMMAND_REPEATS)
+        {
+          snprintf(out, sizeof(out), "BRIDGE RADIO TX %s OK repeats=%u",
+                   serial_line, transmissions);
+          Debug_Log(out);
+          HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+        }
+        else
+        {
+          snprintf(out, sizeof(out),
+                   "BRIDGE RADIO TX %s FAILED attempt=%u (%s)",
+                   serial_line, (unsigned int)(transmissions + 1U), detail);
+          Debug_Log(out);
+          RN2483_Flush();
+        }
+      }
+      else
+      {
+        int position = snprintf(out, sizeof(out),
+                                "BRIDGE SERIAL ERROR unknown len=%u hex=",
+                                (unsigned int)strlen(serial_line));
+        for (size_t index = 0U;
+             index < strlen(serial_line) && position < (int)sizeof(out) - 3;
+             index++)
+        {
+          position += snprintf(&out[position], sizeof(out) - (size_t)position,
+                               "%02X", (uint8_t)serial_line[index]);
+        }
+        Debug_Log(out);
+      }
+      continue;
+    }
 
     /* Arm one receive window (0 = until a packet or the watchdog fires). */
     if (RN2483_Command("radio rx 0", resp, sizeof(resp), RN2483_RESP_TIMEOUT) != HAL_OK ||
@@ -374,7 +647,12 @@ int main(void)
     }
     else if (strcmp(line, "radio_err") == 0)
     {
-      Debug_Log("(nothing heard in this window, still listening)");
+      const uint32_t now = HAL_GetTick();
+      if ((now - last_silence_log_ms) >= SILENCE_LOG_MS)
+      {
+        Debug_Log("(nothing heard recently, still listening)");
+        last_silence_log_ms = now;
+      }
     }
     else
     {

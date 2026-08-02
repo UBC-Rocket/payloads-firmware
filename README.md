@@ -46,11 +46,10 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   and `0x55` synchronization sequence, pauses the MAC, applies and reads back the
   required raw-LoRa profile at 433575000 Hz, then enters continuous receive
   mode.
-- For link troubleshooting, the payload uses bounded four-second receive
-  windows. At the end of a window it transmits any queued `PING <counter>`,
-  waits for `radio_tx_ok`, and immediately opens the next receive window. The
-  range-test receiver prints that as an `RX ...` line which
-  `range-monitor.html` already charts.
+- The payload uses bounded four-second receive windows and immediately opens a
+  new window whenever the RN2483 watchdog expires. It does not transmit
+  periodic PING packets, so the radio remains dedicated to receiving pump
+  commands.
 - USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
   the configured radio profile at boot, radio state and receive counters once
   per second, and an immediate `EVENT ... applied` line when a pump command
@@ -60,6 +59,18 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   so line-oriented serial bridges work. Other malformed or unknown packets
   leave the pump unchanged. The pump starts low and is also forced low by
   `Error_Handler`.
+
+The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
+ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`
+and `PUMP_OFF` lines from `range-monitor.html`. Reception is interrupt-driven,
+so commands are retained while the RN2483 is listening. Between two-second
+receive slices the bridge converts the command to a raw-LoRa hex payload,
+transmits three copies with the same SF12/BW125/CR4/5/sync-0x34 profile, waits
+for each `radio_tx_ok`, and returns to receive mode. Repetition gives the
+idempotent pump command extra link margin. `BRIDGE SERIAL RX ...` confirms the
+browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
+RN2483 completed all transmissions (it is not an acknowledgement from the
+payload).
 
 SPI2 is configured in the `.ioc` for eight-bit SPI mode 0 at 250 kHz with
 software-controlled chip select. PA4 is an initially-high `SD_CS` GPIO, and

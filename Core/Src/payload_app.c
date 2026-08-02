@@ -44,7 +44,6 @@
 #define DEBUG_STATUS_INTERVAL_MS 1000U
 #define DEBUG_UART_TIMEOUT_MS 50U
 #define DEBUG_LINE_SIZE 320U
-#define RADIO_BEACON_INTERVAL_MS 5000U
 
 #define SENSOR_ERROR_ACCEL 0x01U
 #define SENSOR_ERROR_UV 0x02U
@@ -82,8 +81,7 @@ static rn2483_t radio;
 static rn2483_stm32_bus_t radio_bus;
 static bool radio_initialized;
 static uint32_t debug_next_status_ms;
-static uint32_t radio_next_beacon_ms;
-static uint32_t radio_beacon_count;
+static uint32_t radio_reported_invalid_packets;
 
 static uint32_t uv_next_poll_ms;
 static uint32_t uv_retry_at_ms;
@@ -268,6 +266,20 @@ static void process_radio(uint32_t now_ms)
     }
 
     rn2483_process(&radio, now_ms);
+    if (radio.stats.invalid_packets != radio_reported_invalid_packets) {
+        char line[DEBUG_LINE_SIZE];
+        const int length = snprintf(
+            line,
+            sizeof(line),
+            "BADPKT count=%lu raw=\"%s\"\r\n",
+            (unsigned long)radio.stats.invalid_packets,
+            radio.last_line);
+        if (length > 0 && (size_t)length < sizeof(line)) {
+            debug_transmit(line);
+        }
+        radio_reported_invalid_packets = radio.stats.invalid_packets;
+    }
+
     rn2483_event_t event;
     while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
         if (event == RN2483_EVENT_PUMP_ON) {
@@ -279,26 +291,6 @@ static void process_radio(uint32_t now_ms)
         }
     }
 
-    if (deadline_reached(now_ms, radio_next_beacon_ms)) {
-        char beacon[32];
-        const int length = snprintf(beacon,
-                                    sizeof(beacon),
-                                    "PING %lu",
-                                    (unsigned long)radio_beacon_count);
-        if (length > 0 && (size_t)length < sizeof(beacon) &&
-            rn2483_send_text(&radio, beacon)) {
-            char line[64];
-            const int line_length = snprintf(line,
-                                             sizeof(line),
-                                             "BEACON queued \"%s\"\r\n",
-                                             beacon);
-            if (line_length > 0 && (size_t)line_length < sizeof(line)) {
-                debug_transmit(line);
-            }
-            radio_beacon_count++;
-            radio_next_beacon_ms = now_ms + RADIO_BEACON_INTERVAL_MS;
-        }
-    }
     payload_radio_ready = rn2483_is_ready(&radio);
 }
 
@@ -446,7 +438,7 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     tick_epoch = 0U;
     synthetic_next_ms = now_ms;
     uv_next_poll_ms = now_ms;
-    radio_next_beacon_ms = now_ms;
+    radio_reported_invalid_packets = 0U;
     set_pump(false);
 
     initialize_accelerometer(now_ms);

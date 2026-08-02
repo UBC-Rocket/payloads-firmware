@@ -190,6 +190,19 @@ function handleLine(raw) {
     return;
   }
 
+  const bridgeResult = raw.match(/^BRIDGE RADIO TX (PUMP_(?:ON|OFF)) (OK|FAILED)(?:\s|$)/);
+  if (bridgeResult) {
+    finishPendingCommand(bridgeResult[1]);
+    addLog(raw, bridgeResult[2] === "OK" ? "rx" : "drop");
+    return;
+  }
+
+  if (raw.startsWith("BRIDGE SERIAL ERROR")) {
+    finishPendingCommand();
+    addLog(raw, "drop");
+    return;
+  }
+
   const m = raw.match(/^RX \d+: "PING (\d+)" \(snr (-?\d+)(?:, rssi (-?\d+))?/);
   if (m) {
     const ping = parseInt(m[1], 10);
@@ -380,6 +393,17 @@ attachHover($("delayChart"), () => delayView, "s");
 let port = null, reader = null;
 let serialConnected = false;
 let commandPending = false;
+let pendingCommand = null;
+let commandTimer = null;
+
+function finishPendingCommand(command) {
+  if (command && pendingCommand && command !== pendingCommand) return;
+  if (commandTimer) clearTimeout(commandTimer);
+  commandTimer = null;
+  pendingCommand = null;
+  commandPending = false;
+  updateCommandButtons();
+}
 
 function updateCommandButtons() {
   const enabled = serialConnected && port && port.writable && !commandPending;
@@ -391,20 +415,25 @@ async function sendSerialCommand(command) {
   if (!serialConnected || !port || !port.writable || commandPending) return;
 
   commandPending = true;
+  pendingCommand = command;
   updateCommandButtons();
   let writer = null;
   try {
     writer = port.writable.getWriter();
     await writer.write(new TextEncoder().encode(command + "\r\n"));
-    addLog("SERIAL TX: " + command + " (bridge must transmit it over LoRa)", "tx");
+    addLog("SERIAL TX: " + command + " (waiting for bridge radio result)", "tx");
+    commandTimer = setTimeout(() => {
+      if (pendingCommand !== command) return;
+      addLog("bridge response timed out for " + command, "drop");
+      finishPendingCommand(command);
+    }, 15000);
   } catch (err) {
     addLog("serial TX: " + err.message, "drop");
+    finishPendingCommand(command);
   } finally {
     if (writer) {
       try { writer.releaseLock(); } catch (_) {}
     }
-    commandPending = false;
-    updateCommandButtons();
   }
 }
 
@@ -461,6 +490,7 @@ async function disconnect() {
 }
 
 function disconnectUi() {
+  finishPendingCommand();
   serialConnected = false;
   $("dot").classList.remove("live");
   $("connState").textContent = "disconnected";
