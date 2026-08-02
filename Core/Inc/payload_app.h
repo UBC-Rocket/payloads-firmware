@@ -13,7 +13,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
                       I2C_HandleTypeDef *i2c3,
                       SPI_HandleTypeDef *sd_spi,
                       SPI_HandleTypeDef *accel_spi,
-                      UART_HandleTypeDef *radio_uart);
+                      UART_HandleTypeDef *radio_uart,
+                      UART_HandleTypeDef *debug_uart);
 
 void payload_app_process(void);
 

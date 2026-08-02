@@ -5,8 +5,10 @@
 #include <string.h>
 
 #define RN2483_RESPONSE_TIMEOUT_MS 1000U
+#define RN2483_TRANSMIT_TIMEOUT_MS 10000U
+#define RN2483_RECEIVE_WATCHDOG_MS 4000U
 #define RN2483_RETRY_DELAY_MS 1000U
-#define RN2483_CONFIGURATION_STEP_COUNT 22U
+#define RN2483_CONFIGURATION_STEP_COUNT 24U
 
 typedef enum {
     EXPECT_EXACT = 0,
@@ -53,6 +55,12 @@ static void enter_backoff(rn2483_t *device, uint32_t now_ms)
     device->stats.restarts++;
 }
 
+static bool is_transmit_phase(rn2483_phase_t phase)
+{
+    return phase == RN2483_PHASE_TRANSMIT_COMMAND ||
+           phase == RN2483_PHASE_WAIT_TRANSMIT;
+}
+
 static bool transmit_command(rn2483_t *device,
                              const char *command,
                              uint32_t now_ms)
@@ -63,6 +71,9 @@ static bool transmit_command(rn2483_t *device,
                                     (const uint8_t *)command,
                                     length)) {
         device->stats.transport_errors++;
+        if (is_transmit_phase(device->phase)) {
+            device->stats.transmit_failures++;
+        }
         enter_backoff(device, now_ms);
         return false;
     }
@@ -86,7 +97,7 @@ static bool build_configuration_command(const rn2483_t *device,
 
     switch (step) {
     case 0U:
-        command_length = snprintf(command, command_size, "sys get ver\r\n");
+        command_length = snprintf(command, command_size, "sys reset\r\n");
         expected_length = snprintf(expected, expected_size, "RN2483 ");
         *expected_type = EXPECT_PREFIX;
         break;
@@ -148,53 +159,64 @@ static bool build_configuration_command(const rn2483_t *device,
         break;
     case 11U:
         command_length = snprintf(command, command_size,
-                                  "radio set wdt 0\r\n");
+                                  "radio set pwr 14\r\n");
         expected_length = snprintf(expected, expected_size, "ok");
         break;
     case 12U:
+        command_length = snprintf(command, command_size,
+                                  "radio set wdt %u\r\n",
+                                  RN2483_RECEIVE_WATCHDOG_MS);
+        expected_length = snprintf(expected, expected_size, "ok");
+        break;
+    case 13U:
         command_length = snprintf(command, command_size, "radio get mod\r\n");
         expected_length = snprintf(expected, expected_size, "lora");
         break;
-    case 13U:
+    case 14U:
         command_length = snprintf(command, command_size, "radio get freq\r\n");
         expected_length = snprintf(expected, expected_size, "%lu",
                                    (unsigned long)device->config.frequency_hz);
         break;
-    case 14U:
+    case 15U:
         command_length = snprintf(command, command_size, "radio get sf\r\n");
         expected_length = snprintf(expected, expected_size, "sf%u",
                                    device->config.spreading_factor);
         break;
-    case 15U:
+    case 16U:
         command_length = snprintf(command, command_size, "radio get bw\r\n");
         expected_length = snprintf(expected, expected_size, "%u",
                                    device->config.bandwidth_khz);
         break;
-    case 16U:
+    case 17U:
         command_length = snprintf(command, command_size, "radio get cr\r\n");
         expected_length = snprintf(expected, expected_size, "4/%u",
                                    device->config.coding_rate_denominator);
         break;
-    case 17U:
+    case 18U:
         command_length = snprintf(command, command_size, "radio get crc\r\n");
         expected_length = snprintf(expected, expected_size, "on");
         break;
-    case 18U:
+    case 19U:
         command_length = snprintf(command, command_size, "radio get iqi\r\n");
         expected_length = snprintf(expected, expected_size, "off");
         break;
-    case 19U:
+    case 20U:
         command_length = snprintf(command, command_size, "radio get prlen\r\n");
         expected_length = snprintf(expected, expected_size, "8");
         break;
-    case 20U:
+    case 21U:
         command_length = snprintf(command, command_size, "radio get sync\r\n");
         expected_length = snprintf(expected, expected_size, "%02X",
                                    device->config.sync_word);
         break;
-    case 21U:
+    case 22U:
         command_length = snprintf(command, command_size, "radio get wdt\r\n");
-        expected_length = snprintf(expected, expected_size, "0");
+        expected_length = snprintf(expected, expected_size, "%u",
+                                   RN2483_RECEIVE_WATCHDOG_MS);
+        break;
+    case 23U:
+        command_length = snprintf(command, command_size, "radio get pwr\r\n");
+        expected_length = snprintf(expected, expected_size, "14");
         break;
     default:
         return false;
@@ -254,17 +276,39 @@ static bool configuration_reply_matches(const rn2483_t *device,
     return strings_equal_case_insensitive(line, expected);
 }
 
+static bool radio_payload_matches(const char *line, const char *payload_hex)
+{
+    static const char prefix[] = "radio_rx ";
+    if (strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
+        return false;
+    }
+
+    const char *payload = line + (sizeof(prefix) - 1U);
+    const size_t payload_length = strlen(payload_hex);
+    if (strncmp(payload, payload_hex, payload_length) != 0) {
+        return false;
+    }
+
+    const char *suffix = payload + payload_length;
+    return suffix[0] == '\0' ||
+           strcmp(suffix, "0D") == 0 ||
+           strcmp(suffix, "0A") == 0 ||
+           strcmp(suffix, "0D0A") == 0;
+}
+
 static void handle_complete_line(rn2483_t *device,
                                  const char *line,
                                  uint32_t now_ms)
 {
     device->stats.received_lines++;
+    const size_t line_length = strlen(line);
+    memcpy(device->last_line, line, line_length + 1U);
 
     if (device->phase == RN2483_PHASE_LISTENING) {
-        if (strcmp(line, "radio_rx 50554D505F4F4E") == 0) {
+        if (radio_payload_matches(line, "50554D505F4F4E")) {
             device->pending_event = RN2483_EVENT_PUMP_ON;
             device->stats.valid_commands++;
-        } else if (strcmp(line, "radio_rx 50554D505F4F4646") == 0) {
+        } else if (radio_payload_matches(line, "50554D505F4F4646")) {
             device->pending_event = RN2483_EVENT_PUMP_OFF;
             device->stats.valid_commands++;
         } else if (strncmp(line, "radio_rx ", 9U) == 0) {
@@ -275,7 +319,9 @@ static void handle_complete_line(rn2483_t *device,
         }
 
         device->ready = false;
-        device->phase = RN2483_PHASE_ARM_RECEIVER;
+        device->phase = device->transmit_queued
+                            ? RN2483_PHASE_TRANSMIT_COMMAND
+                            : RN2483_PHASE_ARM_RECEIVER;
         device->waiting_for_reply = false;
         return;
     }
@@ -295,7 +341,9 @@ static void handle_complete_line(rn2483_t *device,
         device->waiting_for_reply = false;
         if (device->configuration_step >=
             RN2483_CONFIGURATION_STEP_COUNT) {
-            device->phase = RN2483_PHASE_ARM_RECEIVER;
+            device->phase = device->transmit_queued
+                                ? RN2483_PHASE_TRANSMIT_COMMAND
+                                : RN2483_PHASE_ARM_RECEIVER;
         }
     } else if (device->phase == RN2483_PHASE_ARM_RECEIVER) {
         if (strcmp(line, "ok") != 0) {
@@ -306,6 +354,27 @@ static void handle_complete_line(rn2483_t *device,
         device->waiting_for_reply = false;
         device->phase = RN2483_PHASE_LISTENING;
         device->ready = true;
+    } else if (device->phase == RN2483_PHASE_TRANSMIT_COMMAND) {
+        if (strcmp(line, "ok") != 0) {
+            device->stats.invalid_lines++;
+            device->stats.transmit_failures++;
+            enter_backoff(device, now_ms);
+            return;
+        }
+        device->phase = RN2483_PHASE_WAIT_TRANSMIT;
+        device->deadline_ms = now_ms + RN2483_TRANSMIT_TIMEOUT_MS;
+    } else if (device->phase == RN2483_PHASE_WAIT_TRANSMIT) {
+        if (strcmp(line, "radio_tx_ok") != 0) {
+            device->stats.invalid_lines++;
+            device->stats.transmit_failures++;
+            enter_backoff(device, now_ms);
+            return;
+        }
+        device->stats.transmitted_packets++;
+        device->transmit_command[0] = '\0';
+        device->transmit_queued = false;
+        device->waiting_for_reply = false;
+        device->phase = RN2483_PHASE_ARM_RECEIVER;
     }
 }
 
@@ -394,6 +463,9 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms)
     if (device->waiting_for_reply) {
         if (deadline_reached(now_ms, device->deadline_ms)) {
             device->stats.response_timeouts++;
+            if (is_transmit_phase(device->phase)) {
+                device->stats.transmit_failures++;
+            }
             enter_backoff(device, now_ms);
         }
         return;
@@ -416,6 +488,8 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms)
         (void)transmit_command(device, command, now_ms);
     } else if (device->phase == RN2483_PHASE_ARM_RECEIVER) {
         (void)transmit_command(device, "radio rx 0\r\n", now_ms);
+    } else if (device->phase == RN2483_PHASE_TRANSMIT_COMMAND) {
+        (void)transmit_command(device, device->transmit_command, now_ms);
     }
 }
 
@@ -432,4 +506,50 @@ rn2483_event_t rn2483_take_event(rn2483_t *device)
 bool rn2483_is_ready(const rn2483_t *device)
 {
     return device != NULL && device->ready;
+}
+
+bool rn2483_send_text(rn2483_t *device, const char *payload)
+{
+    static const char hex_digits[] = "0123456789ABCDEF";
+    static const char prefix[] = "radio tx ";
+
+    if (device == NULL || payload == NULL || payload[0] == '\0' ||
+        device->transmit_queued) {
+        return false;
+    }
+
+    const bool can_queue =
+        device->phase == RN2483_PHASE_CONFIGURE ||
+        device->phase == RN2483_PHASE_BACKOFF ||
+        device->phase == RN2483_PHASE_LISTENING ||
+        (device->phase == RN2483_PHASE_ARM_RECEIVER &&
+         !device->waiting_for_reply);
+    if (!can_queue) {
+        return false;
+    }
+
+    const size_t payload_length = strlen(payload);
+    const size_t command_length =
+        (sizeof(prefix) - 1U) + (payload_length * 2U) + 2U;
+    if (command_length >= sizeof(device->transmit_command)) {
+        return false;
+    }
+
+    size_t position = 0U;
+    memcpy(device->transmit_command, prefix, sizeof(prefix) - 1U);
+    position += sizeof(prefix) - 1U;
+    for (size_t index = 0U; index < payload_length; index++) {
+        const uint8_t byte = (uint8_t)payload[index];
+        device->transmit_command[position++] = hex_digits[byte >> 4U];
+        device->transmit_command[position++] = hex_digits[byte & 0x0FU];
+    }
+    device->transmit_command[position++] = '\r';
+    device->transmit_command[position++] = '\n';
+    device->transmit_command[position] = '\0';
+    device->transmit_queued = true;
+
+    if (device->phase == RN2483_PHASE_ARM_RECEIVER) {
+        device->phase = RN2483_PHASE_TRANSMIT_COMMAND;
+    }
+    return true;
 }

@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef RN2483_RADIO_FREQ_HZ
@@ -40,6 +41,10 @@
 #define ACCEL_RETRY_INTERVAL_MS 1000U
 #define ACCEL_SAMPLE_INTERVAL_MS 10U
 #define SENSOR_MAX_CONSECUTIVE_ERRORS 3U
+#define DEBUG_STATUS_INTERVAL_MS 1000U
+#define DEBUG_UART_TIMEOUT_MS 50U
+#define DEBUG_LINE_SIZE 320U
+#define RADIO_BEACON_INTERVAL_MS 5000U
 
 #define SENSOR_ERROR_ACCEL 0x01U
 #define SENSOR_ERROR_UV 0x02U
@@ -70,11 +75,15 @@ static I2C_HandleTypeDef *uv_i2c_handles[UV_I2C_BUS_COUNT];
 static SPI_HandleTypeDef *payload_sd_spi;
 static SPI_HandleTypeDef *payload_accel_spi;
 static UART_HandleTypeDef *payload_radio_uart;
+static UART_HandleTypeDef *payload_debug_uart;
 static bmi088_accel_fifo_batch_t accel_batch;
 static sd_logger_t logger;
 static rn2483_t radio;
 static rn2483_stm32_bus_t radio_bus;
 static bool radio_initialized;
+static uint32_t debug_next_status_ms;
+static uint32_t radio_next_beacon_ms;
+static uint32_t radio_beacon_count;
 
 static uint32_t uv_next_poll_ms;
 static uint32_t uv_retry_at_ms;
@@ -94,6 +103,54 @@ static uint64_t synthetic_next_ms;
 static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
     return (int32_t)(now_ms - deadline_ms) >= 0;
+}
+
+static void debug_transmit(const char *text)
+{
+    if (payload_debug_uart == NULL || text == NULL) {
+        return;
+    }
+
+    const size_t length = strlen(text);
+    if (length == 0U || length > UINT16_MAX) {
+        return;
+    }
+    (void)HAL_UART_Transmit(payload_debug_uart,
+                            (uint8_t *)text,
+                            (uint16_t)length,
+                            DEBUG_UART_TIMEOUT_MS);
+}
+
+static void debug_radio_status(uint32_t now_ms, bool force)
+{
+    if (!force && !deadline_reached(now_ms, debug_next_status_ms)) {
+        return;
+    }
+    debug_next_status_ms = now_ms + DEBUG_STATUS_INTERVAL_MS;
+
+    char line[DEBUG_LINE_SIZE];
+    const int length = snprintf(
+        line,
+        sizeof(line),
+        "RADIO ready=%u phase=%u wait=%u lines=%lu valid=%lu "
+        "badpkt=%lu badline=%lu timeout=%lu uart=%lu tx=%lu txerr=%lu "
+        "pump=%u last=\"%s\"\r\n",
+        payload_radio_ready ? 1U : 0U,
+        (unsigned int)radio.phase,
+        radio.waiting_for_reply ? 1U : 0U,
+        (unsigned long)radio.stats.received_lines,
+        (unsigned long)radio.stats.valid_commands,
+        (unsigned long)radio.stats.invalid_packets,
+        (unsigned long)radio.stats.invalid_lines,
+        (unsigned long)radio.stats.response_timeouts,
+        (unsigned long)radio.stats.transport_errors,
+        (unsigned long)radio.stats.transmitted_packets,
+        (unsigned long)radio.stats.transmit_failures,
+        payload_pump_on ? 1U : 0U,
+        radio.stats.received_lines == 0U ? "-" : radio.last_line);
+    if (length > 0 && (size_t)length < sizeof(line)) {
+        debug_transmit(line);
+    }
 }
 
 static uint64_t monotonic_ms(void)
@@ -215,8 +272,31 @@ static void process_radio(uint32_t now_ms)
     while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
         if (event == RN2483_EVENT_PUMP_ON) {
             set_pump(true);
+            debug_transmit("EVENT PUMP_ON applied pump=1\r\n");
         } else if (event == RN2483_EVENT_PUMP_OFF) {
             set_pump(false);
+            debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
+        }
+    }
+
+    if (deadline_reached(now_ms, radio_next_beacon_ms)) {
+        char beacon[32];
+        const int length = snprintf(beacon,
+                                    sizeof(beacon),
+                                    "PING %lu",
+                                    (unsigned long)radio_beacon_count);
+        if (length > 0 && (size_t)length < sizeof(beacon) &&
+            rn2483_send_text(&radio, beacon)) {
+            char line[64];
+            const int line_length = snprintf(line,
+                                             sizeof(line),
+                                             "BEACON queued \"%s\"\r\n",
+                                             beacon);
+            if (line_length > 0 && (size_t)line_length < sizeof(line)) {
+                debug_transmit(line);
+            }
+            radio_beacon_count++;
+            radio_next_beacon_ms = now_ms + RADIO_BEACON_INTERVAL_MS;
         }
     }
     payload_radio_ready = rn2483_is_ready(&radio);
@@ -350,7 +430,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
                       I2C_HandleTypeDef *i2c3,
                       SPI_HandleTypeDef *sd_spi,
                       SPI_HandleTypeDef *accel_spi,
-                      UART_HandleTypeDef *radio_uart)
+                      UART_HandleTypeDef *radio_uart,
+                      UART_HandleTypeDef *debug_uart)
 {
     uv_i2c_handles[0] = i2c1;
     uv_i2c_handles[1] = i2c2;
@@ -358,12 +439,14 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     payload_sd_spi = sd_spi;
     payload_accel_spi = accel_spi;
     payload_radio_uart = radio_uart;
+    payload_debug_uart = debug_uart;
 
     const uint32_t now_ms = HAL_GetTick();
     last_hal_tick = now_ms;
     tick_epoch = 0U;
     synthetic_next_ms = now_ms;
     uv_next_poll_ms = now_ms;
+    radio_next_beacon_ms = now_ms;
     set_pump(false);
 
     initialize_accelerometer(now_ms);
@@ -392,15 +475,34 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     radio_initialized =
         radio_status == RN2483_OK ||
         radio_status == RN2483_ERROR_TRANSPORT;
+    bool autobaud_ok = false;
     if (radio_initialized) {
-        if (!rn2483_stm32_autobaud(&radio_bus,
-                                   GPIOA,
-                                   GPIO_PIN_2,
-                                   GPIO_AF1_USART2)) {
+        autobaud_ok = rn2483_stm32_autobaud(&radio_bus,
+                                            GPIOA,
+                                            GPIO_PIN_2,
+                                            GPIO_AF1_USART2);
+        if (!autobaud_ok) {
             radio.stats.transport_errors++;
             (void)rn2483_stm32_rearm_receive(&radio_bus);
         }
     }
+
+    char boot_line[DEBUG_LINE_SIZE];
+    const int boot_length = snprintf(
+        boot_line,
+        sizeof(boot_line),
+        "BOOT freq=%lu sf=%u bw=%u cr=4/%u sync=%02X bind=%u autobaud=%u\r\n",
+        (unsigned long)radio_config.frequency_hz,
+        radio_config.spreading_factor,
+        radio_config.bandwidth_khz,
+        radio_config.coding_rate_denominator,
+        radio_config.sync_word,
+        (unsigned int)radio_status,
+        autobaud_ok ? 1U : 0U);
+    if (boot_length > 0 && (size_t)boot_length < sizeof(boot_line)) {
+        debug_transmit(boot_line);
+    }
+    debug_radio_status(now_ms, true);
 }
 
 void payload_app_process(void)
@@ -409,6 +511,7 @@ void payload_app_process(void)
     const uint32_t now_ms = (uint32_t)now_extended_ms;
 
     process_radio(now_ms);
+    debug_radio_status(now_ms, false);
     process_uv(now_ms);
     process_accelerometer(now_ms, now_extended_ms);
     sd_logger_service(&logger, now_ms);

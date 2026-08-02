@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug STM32 (ST-Link)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/range-test-rx.elf",
+            "servertype": "openocd",
+            "device": "STM32F103RB",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32f1x.cfg"
+            ],
+            "preLaunchTask": "Build (Debug)",
+            "runToEntryPoint": "main"
+        }
+    ]
+}

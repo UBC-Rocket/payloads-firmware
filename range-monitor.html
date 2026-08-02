@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LoRa Range Monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-snr:     #2a78d6;  /* categorical slot 1: SNR */
+    --series-delay:   #1baf7a;  /* categorical slot 2: delay */
+    --series-rssi:    #eda100;  /* categorical slot 3: RSSI */
+    --bad:            #d03b3b;  /* status: critical (dropouts) */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-snr:     #3987e5;
+      --series-delay:   #199e70;
+      --series-rssi:    #c98500;
+      --bad:            #d03b3b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    background: var(--page); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .topbar .spacer { flex: 1; }
+  button {
+    font: inherit; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  }
+  button.primary { background: var(--series-snr); border-color: transparent; color: #fff; }
+  button.danger { background: var(--bad); border-color: transparent; color: #fff; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 6px; }
+  .status-dot.live { background: #0ca30c; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .tile .value small { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .panel {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px;
+  }
+  .panel h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--text-secondary); }
+  .panel h2 .chip { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  canvas { width: 100%; height: 220px; display: block; cursor: crosshair; }
+  #log {
+    height: 200px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary);
+  }
+  #log .rx { color: var(--text-primary); }
+  #log .tx { color: var(--series-snr); }
+  #log .drop { color: var(--bad); }
+  #log .time { color: var(--text-muted); }
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .hint { color: var(--text-muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>LoRa Range Monitor</h1>
+  <span class="hint" id="portHint">receiver console @ 115200</span>
+  <div class="spacer"></div>
+  <span><span class="status-dot" id="dot"></span><span id="connState">disconnected</span></span>
+  <button class="primary" id="btnConnect">Connect serial</button>
+  <button class="danger" id="btnPumpOn" disabled>Send PUMP_ON</button>
+  <button id="btnPumpOff" disabled>Send PUMP_OFF</button>
+  <button id="btnDemo">Demo data</button>
+  <button id="btnCsv" disabled>Export CSV</button>
+  <button id="btnClear">Clear</button>
+</div>
+
+<div class="tiles">
+  <div class="tile"><div class="label">Received</div><div class="value" id="tRx">0</div></div>
+  <div class="tile"><div class="label">Missed</div><div class="value" id="tMiss">0</div></div>
+  <div class="tile"><div class="label">Loss</div><div class="value" id="tLoss">0<small> %</small></div></div>
+  <div class="tile"><div class="label">Last SNR</div><div class="value" id="tSnr">–<small> dB</small></div></div>
+  <div class="tile"><div class="label">Avg SNR (last 10)</div><div class="value" id="tSnrAvg">–<small> dB</small></div></div>
+  <div class="tile"><div class="label">Last RSSI</div><div class="value" id="tRssi">–<small> dBm</small></div></div>
+  <div class="tile"><div class="label">Last gap</div><div class="value" id="tDelay">–<small> s</small></div></div>
+  <div class="tile"><div class="label">Payload radio</div><div class="value" id="tRadio">–</div></div>
+  <div class="tile"><div class="label">Payload pump</div><div class="value" id="tPump">–</div></div>
+</div>
+
+<div class="charts">
+  <div class="panel">
+    <h2><span class="chip" style="background:var(--series-snr)"></span>SNR over time (dB)</h2>
+    <canvas id="snrChart"></canvas>
+  </div>
+  <div class="panel">
+    <h2><span class="chip" style="background:var(--series-rssi)"></span>RSSI over time (dBm)</h2>
+    <canvas id="rssiChart"></canvas>
+  </div>
+  <div class="panel">
+    <h2><span class="chip" style="background:var(--series-delay)"></span>Gap between messages (s)</h2>
+    <canvas id="delayChart"></canvas>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Console</h2>
+  <div id="log"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+"use strict";
+
+/* ---------- data model ---------- */
+const points = [];        // {t:Date, snr:number, delay:number|null, ping:number, raw:string}
+let missed = 0;
+let lastPing = null;
+let lastRxTime = null;
+let demoTimer = null;
+
+/* ---------- ui refs ---------- */
+const $ = id => document.getElementById(id);
+const logEl = $("log"), tooltip = $("tooltip");
+
+function fmtTime(d) {
+  return d.toTimeString().slice(0, 8);
+}
+
+function addLog(text, cls) {
+  const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 4;
+  const line = document.createElement("div");
+  line.innerHTML = '<span class="time">' + fmtTime(new Date()) + '</span>  ';
+  const span = document.createElement("span");
+  span.className = cls || "";
+  span.textContent = text;
+  line.appendChild(span);
+  logEl.appendChild(line);
+  while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+  if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+}
+
+/* ---------- line parsing ---------- */
+function handleLine(raw) {
+  raw = raw.replace(/\r/g, "").trim();
+  if (!raw) return;
+
+  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)/);
+  if (radioStatus) {
+    const phaseNames = [
+      "config", "arm RX", "listening", "backoff", "send TX", "wait TX"
+    ];
+    const phase = parseInt(radioStatus[2], 10);
+    $("tRadio").textContent = phaseNames[phase] || ("phase " + phase);
+    $("tPump").textContent = radioStatus[3] === "1" ? "ON" : "OFF";
+    addLog(raw, radioStatus[1] === "1" ? "rx" : "");
+    return;
+  }
+
+  const pumpEvent = raw.match(/^EVENT PUMP_(ON|OFF) applied pump=([01])/);
+  if (pumpEvent) {
+    $("tPump").textContent = pumpEvent[2] === "1" ? "ON" : "OFF";
+    addLog(raw, "rx");
+    return;
+  }
+
+  const m = raw.match(/^RX \d+: "PING (\d+)" \(snr (-?\d+)(?:, rssi (-?\d+))?/);
+  if (m) {
+    const ping = parseInt(m[1], 10);
+    const snr = parseInt(m[2], 10);
+    const rssi = m[3] !== undefined ? parseInt(m[3], 10) : null;
+    const now = new Date();
+    const delay = lastRxTime ? (now - lastRxTime) / 1000 : null;
+    if (lastPing !== null && ping > lastPing + 1) missed += ping - lastPing - 1;
+    lastPing = ping;
+    lastRxTime = now;
+    points.push({ t: now, snr, rssi, delay, ping, raw });
+    addLog(raw, "rx");
+    refresh();
+    return;
+  }
+
+  const isDrop = raw.indexOf("nothing heard") !== -1 || raw.indexOf("module went quiet") !== -1;
+  addLog(raw, isDrop ? "drop" : "");
+  if (isDrop) refresh();
+}
+
+/* ---------- stats ---------- */
+function refresh() {
+  $("tRx").textContent = points.length;
+  $("tMiss").textContent = missed;
+  const total = points.length + missed;
+  $("tLoss").innerHTML = (total ? (100 * missed / total).toFixed(1) : "0") + "<small> %</small>";
+  if (points.length) {
+    const last = points[points.length - 1];
+    $("tSnr").innerHTML = last.snr + "<small> dB</small>";
+    const tail = points.slice(-10);
+    const avg = tail.reduce((s, p) => s + p.snr, 0) / tail.length;
+    $("tSnrAvg").innerHTML = avg.toFixed(1) + "<small> dB</small>";
+    $("tRssi").innerHTML = (last.rssi === null ? "–" : last.rssi) + "<small> dBm</small>";
+    $("tDelay").innerHTML = (last.delay === null ? "–" : last.delay.toFixed(1)) + "<small> s</small>";
+  }
+  $("btnCsv").disabled = points.length === 0;
+  drawAll();
+}
+
+/* ---------- charts (hand-rolled canvas) ---------- */
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const PAD = { l: 40, r: 34, t: 8, b: 22 };
+
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr; canvas.height = h * dpr;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+function niceTicks(min, max, n) {
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  const step0 = span / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  let step = mag;
+  for (const mult of [1, 2, 5, 10]) { if (mag * mult >= step0) { step = mag * mult; break; } }
+  const ticks = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(v);
+  return ticks;
+}
+
+function drawChart(canvas, getY, color, opts) {
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+  const data = points.filter(p => getY(p) !== null && getY(p) !== undefined);
+  ctx.font = "11px system-ui, sans-serif";
+
+  if (data.length < 1) {
+    ctx.fillStyle = css("--text-muted");
+    ctx.textAlign = "center";
+    ctx.fillText(points.length && opts.emptyMsg ? opts.emptyMsg : "waiting for data…", w / 2, h / 2);
+    return null;
+  }
+
+  const t0 = data[0].t.getTime(), t1 = Math.max(data[data.length - 1].t.getTime(), t0 + 10000);
+  let ys = data.map(getY);
+  let yMin = Math.min(...ys), yMax = Math.max(...ys);
+  if (opts.includeZero) yMin = Math.min(yMin, 0);
+  if (opts.refLine !== undefined) { yMin = Math.min(yMin, opts.refLine); yMax = Math.max(yMax, opts.refLine); }
+  const yPadding = (yMax - yMin) * 0.1 || 1;
+  yMin -= yPadding; yMax += yPadding;
+
+  const X = t => PAD.l + (w - PAD.l - PAD.r) * (t - t0) / (t1 - t0);
+  const Y = v => h - PAD.b - (h - PAD.b - PAD.t) * (v - yMin) / (yMax - yMin);
+
+  /* gridlines + y labels (recessive) */
+  ctx.strokeStyle = css("--gridline");
+  ctx.lineWidth = 1;
+  ctx.fillStyle = css("--text-muted");
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of niceTicks(yMin, yMax, 4)) {
+    const y = Y(v);
+    if (y < PAD.t || y > h - PAD.b) continue;
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(w - PAD.r, y); ctx.stroke();
+    ctx.fillText(opts.fmt ? opts.fmt(v) : v, PAD.l - 6, y);
+  }
+
+  /* x labels: start / mid / end times */
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const frac of [0, 0.5, 1]) {
+    const t = t0 + (t1 - t0) * frac;
+    ctx.fillText(fmtTime(new Date(t)), X(t), h - PAD.b + 6);
+  }
+
+  /* baseline */
+  ctx.strokeStyle = css("--baseline");
+  ctx.beginPath(); ctx.moveTo(PAD.l, h - PAD.b); ctx.lineTo(w - PAD.r, h - PAD.b); ctx.stroke();
+
+  /* reference line (e.g. SF12 demod floor at -20 dB) */
+  if (opts.refLine !== undefined) {
+    ctx.strokeStyle = css("--bad");
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(PAD.l, Y(opts.refLine)); ctx.lineTo(w - PAD.r, Y(opts.refLine)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = css("--bad");
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(opts.refLabel, PAD.l + 4, Y(opts.refLine) - 2);
+  }
+
+  /* series line, 2px */
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  data.forEach((p, i) => {
+    const x = X(p.t.getTime()), y = Y(getY(p));
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+
+  /* last-point marker + direct label (selective, not every point) */
+  const lp = data[data.length - 1];
+  const lx = X(lp.t.getTime()), ly = Y(getY(lp));
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = css("--surface-1"); ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = css("--text-primary");
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  ctx.fillText((opts.fmt ? opts.fmt(getY(lp)) : getY(lp)), lx - 6, ly - 5);
+
+  return { data, X, Y, getY };
+}
+
+let snrView = null, delayView = null, rssiView = null;
+function drawAll() {
+  snrView = drawChart($("snrChart"), p => p.snr, css("--series-snr"),
+    { refLine: -20, refLabel: "SF12 limit − 20 dB", fmt: v => Math.round(v) });
+  rssiView = drawChart($("rssiChart"), p => p.rssi, css("--series-rssi"),
+    { refLine: -137, refLabel: "SF12 sensitivity − 137 dBm", fmt: v => Math.round(v),
+      emptyMsg: "no RSSI — module firmware < 1.0.5 (SNR chart still works)" });
+  delayView = drawChart($("delayChart"), p => p.delay, css("--series-delay"),
+    { includeZero: true, fmt: v => (Math.round(v * 10) / 10) + "" });
+}
+
+/* ---------- hover tooltips ---------- */
+function attachHover(canvas, getView, unit) {
+  canvas.addEventListener("mousemove", e => {
+    const view = getView();
+    if (!view || !view.data.length) { tooltip.style.display = "none"; return; }
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    let best = null, bestDist = 1e9;
+    for (const p of view.data) {
+      const d = Math.abs(view.X(p.t.getTime()) - mx);
+      if (d < bestDist) { bestDist = d; best = p; }
+    }
+    if (!best || bestDist > 40) { tooltip.style.display = "none"; return; }
+    const v = view.getY(best);
+    tooltip.innerHTML = "<b>" + (Math.round(v * 10) / 10) + " " + unit + "</b><br>" +
+      "PING " + best.ping + " · " + fmtTime(best.t);
+    tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 14) + "px";
+    tooltip.style.top = (e.clientY + 14) + "px";
+  });
+  canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+}
+attachHover($("snrChart"), () => snrView, "dB");
+attachHover($("rssiChart"), () => rssiView, "dBm");
+attachHover($("delayChart"), () => delayView, "s");
+
+/* ---------- web serial ---------- */
+let port = null, reader = null;
+let serialConnected = false;
+let commandPending = false;
+
+function updateCommandButtons() {
+  const enabled = serialConnected && port && port.writable && !commandPending;
+  $("btnPumpOn").disabled = !enabled;
+  $("btnPumpOff").disabled = !enabled;
+}
+
+async function sendSerialCommand(command) {
+  if (!serialConnected || !port || !port.writable || commandPending) return;
+
+  commandPending = true;
+  updateCommandButtons();
+  let writer = null;
+  try {
+    writer = port.writable.getWriter();
+    await writer.write(new TextEncoder().encode(command + "\r\n"));
+    addLog("SERIAL TX: " + command + " (bridge must transmit it over LoRa)", "tx");
+  } catch (err) {
+    addLog("serial TX: " + err.message, "drop");
+  } finally {
+    if (writer) {
+      try { writer.releaseLock(); } catch (_) {}
+    }
+    commandPending = false;
+    updateCommandButtons();
+  }
+}
+
+async function connect() {
+  if (!("serial" in navigator)) {
+    alert("This browser has no Web Serial support - use Chrome or Edge.");
+    return;
+  }
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+  } catch (err) {
+    addLog("serial: " + err.message, "drop");
+    return;
+  }
+  stopDemo();
+  serialConnected = true;
+  $("dot").classList.add("live");
+  $("connState").textContent = "connected";
+  $("btnConnect").textContent = "Disconnect";
+  updateCommandButtons();
+  addLog("serial connected @ 115200", "");
+  readLoop();
+}
+
+async function readLoop() {
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    reader = port.readable.getReader();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        handleLine(buf.slice(0, idx));
+        buf = buf.slice(idx + 1);
+      }
+    }
+  } catch (err) {
+    addLog("serial: " + err.message, "drop");
+  } finally {
+    if (reader) { try { reader.releaseLock(); } catch (_) {} }
+    disconnectUi();
+  }
+}
+
+async function disconnect() {
+  try { if (reader) await reader.cancel(); } catch (_) {}
+  try { if (port) await port.close(); } catch (_) {}
+  port = null;
+  disconnectUi();
+}
+
+function disconnectUi() {
+  serialConnected = false;
+  $("dot").classList.remove("live");
+  $("connState").textContent = "disconnected";
+  $("btnConnect").textContent = "Connect serial";
+  $("btnPumpOn").disabled = true;
+  $("btnPumpOff").disabled = true;
+}
+
+$("btnConnect").addEventListener("click", () => (port ? disconnect() : connect()));
+$("btnPumpOn").addEventListener("click", () => sendSerialCommand("PUMP_ON"));
+$("btnPumpOff").addEventListener("click", () => sendSerialCommand("PUMP_OFF"));
+
+/* ---------- demo mode (no hardware needed) ---------- */
+function stopDemo() {
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; $("btnDemo").textContent = "Demo data"; }
+}
+$("btnDemo").addEventListener("click", () => {
+  if (demoTimer) { stopDemo(); return; }
+  if (port) return;
+  $("btnDemo").textContent = "Stop demo";
+  let ping = (lastPing === null ? 0 : lastPing), snr = 2;
+  demoTimer = setInterval(() => {
+    ping += Math.random() < 0.12 ? 2 : 1;   /* occasional missed frame */
+    snr = Math.max(-21, Math.min(6, snr + (Math.random() - 0.53) * 2));
+    if (snr < -20) { handleLine("(nothing heard in this window, still listening)"); return; }
+    const rssi = Math.round(-117 + snr + (Math.random() - 0.5) * 4);
+    handleLine('RX 0: "PING ' + ping + '" (snr ' + Math.round(snr) + ', rssi ' + rssi + ')');
+  }, 700);
+});
+
+/* ---------- csv export ---------- */
+$("btnCsv").addEventListener("click", () => {
+  let csv = "time,ping,snr_db,rssi_dbm,gap_s\n";
+  for (const p of points) {
+    csv += p.t.toISOString() + "," + p.ping + "," + p.snr + "," +
+           (p.rssi === null ? "" : p.rssi) + "," +
+           (p.delay === null ? "" : p.delay.toFixed(2)) + "\n";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "range-test-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/* ---------- clear ---------- */
+$("btnClear").addEventListener("click", () => {
+  points.length = 0;
+  missed = 0;
+  lastPing = null;
+  lastRxTime = null;
+  logEl.innerHTML = "";
+  $("tSnr").innerHTML = "–<small> dB</small>";
+  $("tSnrAvg").innerHTML = "–<small> dB</small>";
+  $("tRssi").innerHTML = "–<small> dBm</small>";
+  $("tDelay").innerHTML = "–<small> s</small>";
+  $("tRadio").textContent = "–";
+  $("tPump").textContent = "–";
+  refresh();
+});
+
+window.addEventListener("resize", drawAll);
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+drawAll();
+</script>
+</body>
+</html>

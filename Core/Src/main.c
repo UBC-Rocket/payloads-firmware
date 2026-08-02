@@ -34,6 +34,11 @@
 /* USER CODE BEGIN PD */
 #define UVLED_PWM_PERIOD_TICKS 64000U
 #define UVLED_PWM_ON_TICKS 1U
+#define TIM2_INPUT_CLOCK_HZ 64000000U
+#define BUZZER_TIMER_PRESCALER 63U
+#define BUZZER_TIMER_TICK_HZ \
+  (TIM2_INPUT_CLOCK_HZ / (BUZZER_TIMER_PRESCALER + 1U))
+#define BUZZER_NOTE_GAP_MS 4U
 
 /* USER CODE END PD */
 
@@ -79,6 +84,82 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void update_buzzer_output(uint32_t period_ticks,
+                                 uint32_t pulse_ticks)
+{
+  __HAL_TIM_DISABLE(&htim2);
+  __HAL_TIM_SET_AUTORELOAD(&htim2, period_ticks - 1U);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pulse_ticks);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  if (HAL_TIM_GenerateEvent(&htim2, TIM_EVENTSOURCE_UPDATE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  __HAL_TIM_ENABLE(&htim2);
+}
+
+static void play_startup_song(void)
+{
+  /* Four opening bars from the 6/8 violin run. Each group advances one
+     G-major scale degree while retaining the score's 1-2-3-5-6-4 shape. */
+  static const uint16_t scale_frequency_hz[] = {
+    294U,  /* D4 */
+    330U,  /* E4 */
+    370U,  /* F#4 */
+    392U,  /* G4 */
+    440U,  /* A4 */
+    494U,  /* B4 */
+    523U,  /* C5 */
+    587U,  /* D5 */
+    659U,  /* E5 */
+    740U,  /* F#5 */
+    784U,  /* G5 */
+    880U,  /* A5 */
+    988U,  /* B5 */
+  };
+  static const uint8_t run_pattern[] = {0U};
+  static const uint16_t note_duration_ms[] = {
+    120U, 120U, 110U, 110U, 100U, 90U, 80U, 70U,
+  };
+
+  __HAL_TIM_DISABLE(&htim2);
+  __HAL_TIM_SET_PRESCALER(&htim2, BUZZER_TIMER_PRESCALER);
+  __HAL_TIM_SET_AUTORELOAD(&htim2, BUZZER_TIMER_TICK_HZ - 1U);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0U);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  if (HAL_TIM_GenerateEvent(&htim2, TIM_EVENTSOURCE_UPDATE) != HAL_OK ||
+      HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  for (uint32_t group_index = 0U;
+       group_index < (sizeof(note_duration_ms) /
+                      sizeof(note_duration_ms[0]));
+       group_index++)
+  {
+    for (uint32_t pattern_index = 0U;
+         pattern_index < (sizeof(run_pattern) / sizeof(run_pattern[0]));
+         pattern_index++)
+    {
+      const uint32_t scale_index = group_index + run_pattern[pattern_index];
+      const uint32_t frequency_hz = scale_frequency_hz[scale_index];
+      const uint32_t period_ticks =
+        (BUZZER_TIMER_TICK_HZ + (frequency_hz / 2U)) / frequency_hz;
+      update_buzzer_output(period_ticks, period_ticks / 2U);
+
+      HAL_Delay(note_duration_ms[group_index] - BUZZER_NOTE_GAP_MS);
+      update_buzzer_output(period_ticks, 0U);
+      HAL_Delay(BUZZER_NOTE_GAP_MS);
+    }
+  }
+
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0U);
+  if (HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -121,6 +202,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  play_startup_song();
+
   /* Override TIM2_CH2 only at runtime to generate 1 kHz with a 10%
      active-high LED-on interval. */
   TIM_OC_InitTypeDef uvled_pwm = {0};
@@ -153,7 +236,8 @@ int main(void)
                    &hi2c3,
                    &hspi2,
                    &hspi1,
-                   &huart2);
+                   &huart2,
+                   &huart1);
 
   /* USER CODE END 2 */
 
@@ -625,7 +709,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 57600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;

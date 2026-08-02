@@ -1,0 +1,32 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - heading "LoRa Range Monitor" [level=1] [ref=f2e3]
+    - generic [ref=f2e4]: receiver console @ 115200
+    - generic [ref=f2e5]: disconnected
+    - button "Connect serial" [active] [ref=f2e7] [cursor=pointer]
+    - button "Stop demo" [ref=f2e42] [cursor=pointer]
+    - button "Export CSV" [disabled] [ref=f2e9]
+    - button "Clear" [ref=f2e10] [cursor=pointer]
+  - generic [ref=f2e11]:
+    - generic [ref=f2e12]:
+      - generic [ref=f2e13]: Received
+      - generic [ref=f2e14]: "0"
+    - generic [ref=f2e15]:
+      - generic [ref=f2e16]: Missed
+      - generic [ref=f2e17]: "0"
+    - generic [ref=f2e18]:
+      - generic [ref=f2e19]: Loss
+      - generic [ref=f2e20]: 0 %
+    - generic [ref=f2e21]:
+      - generic [ref=f2e22]: Last SNR
+      - generic [ref=f2e23]: – dB
+    - generic [ref=f2e24]:
+      - generic [ref=f2e25]: Avg SNR (last 10)
+      - generic [ref=f2e26]: – dB
+    - generic [ref=f2e27]:
+      - generic [ref=f2e28]: Last gap
+      - generic [ref=f2e29]: – s
+  - generic [ref=f2e30]:
+    - heading "SNR over time (dB)" [level=2] [ref=f2e32]
+    - heading "Gap between messages (s)" [level=2] [ref=f2e36]
+  - heading "Console" [level=2] [ref=f2e40]

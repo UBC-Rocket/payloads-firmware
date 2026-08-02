@@ -57,13 +57,17 @@ typedef struct {
     uint32_t receive_overflows;
     uint32_t restarts;
     uint32_t valid_commands;
+    uint32_t transmitted_packets;
+    uint32_t transmit_failures;
 } rn2483_stats_t;
 
 typedef enum {
     RN2483_PHASE_CONFIGURE = 0,
     RN2483_PHASE_ARM_RECEIVER,
     RN2483_PHASE_LISTENING,
-    RN2483_PHASE_BACKOFF
+    RN2483_PHASE_BACKOFF,
+    RN2483_PHASE_TRANSMIT_COMMAND,
+    RN2483_PHASE_WAIT_TRANSMIT
 } rn2483_phase_t;
 
 typedef struct {
@@ -73,7 +77,9 @@ typedef struct {
     volatile uint16_t rx_head;
     volatile uint16_t rx_tail;
     uint8_t rx_ring[RN2483_RX_RING_SIZE];
+    char last_line[RN2483_LINE_SIZE];
     char line[RN2483_LINE_SIZE];
+    char transmit_command[RN2483_COMMAND_SIZE];
     size_t line_length;
     uint8_t configuration_step;
     uint32_t deadline_ms;
@@ -83,6 +89,7 @@ typedef struct {
     bool waiting_for_reply;
     bool discarding_line;
     bool ready;
+    bool transmit_queued;
 } rn2483_t;
 
 rn2483_status_t rn2483_init(rn2483_t *device,
@@ -106,6 +113,15 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms);
 rn2483_event_t rn2483_take_event(rn2483_t *device);
 
 bool rn2483_is_ready(const rn2483_t *device);
+
+/**
+ * @brief Queue one ASCII payload for raw-LoRa transmission.
+ *
+ * The request may be queued while the driver configures or listens. A queued
+ * packet is sent once the bounded receive window completes, and the driver then
+ * automatically returns to receive mode.
+ */
+bool rn2483_send_text(rn2483_t *device, const char *payload);
 
 #ifdef __cplusplus
 }

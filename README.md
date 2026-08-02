@@ -5,22 +5,22 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 
 ## Build
 
-The receiver must use the same raw-LoRa profile as the transmitter. CMake
-requires those values rather than silently building a receiver with guessed RF
-settings. For example:
+The receiver must use the same raw-LoRa profile as the transmitter. The known
+module frequency defaults to 433575000 Hz; CMake requires the remaining values
+rather than silently building a receiver with guessed RF settings. For example:
 
 ```sh
 cmake --preset Debug \
-  -DRN2483_RADIO_FREQ_HZ=868000000 \
-  -DRN2483_RADIO_SF=7 \
+  -DRN2483_RADIO_SF=12 \
   -DRN2483_RADIO_BW_KHZ=125 \
   -DRN2483_RADIO_CR=5 \
-  -DRN2483_RADIO_SYNC_WORD=0x12
+  -DRN2483_RADIO_SYNC_WORD=0x34
 cmake --build --preset Debug
 ```
 
-Replace the example values with the transmitter's frequency, spreading factor,
-bandwidth, coding-rate denominator, and sync byte. The ELF is written to
+Replace the example values with the transmitter's spreading factor, bandwidth,
+coding-rate denominator, and sync byte. The frequency can still be overridden
+with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
 `build/Debug/Payloads.elf`.
 
 ## Runtime behavior
@@ -31,6 +31,10 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
 - The single LTR390 is detected on the configured 100 kHz I2C1, I2C2, and I2C3
   headers in that order. Once found, only that instance is sampled. It runs in
   UV mode at 20-bit resolution, a 500 ms measurement period, and 18x gain.
+- PA0 drives the passive buzzer from TIM2 channel 1. At startup it plays a
+  tempo-compressed transcription of the four-bar opening violin run from "Can
+  You Hear the Music," stops the buzzer low, and then hands the shared timer to
+  the UV-emitter PWM setup.
 - PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. A runtime override in the
   protected user-code section runs it at 1 kHz with a 10% active-high LED-on
   interval on the shared UV-emitter control net.
@@ -38,12 +42,24 @@ bandwidth, coding-rate denominator, and sync byte. The ELF is written to
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
   cards are retried every five seconds while acquisition continues.
-- USART2 uses the `.ioc` value of 115200 baud. Startup sends the RN2483 break
-  and `0x55` auto-baud sequence, pauses the MAC, applies and reads back the
-  required raw-LoRa profile, then enters continuous receive mode.
+- USART2 uses the RN2483 default of 57600 baud. Startup sends the RN2483 break
+  and `0x55` synchronization sequence, pauses the MAC, applies and reads back the
+  required raw-LoRa profile at 433575000 Hz, then enters continuous receive
+  mode.
+- For link troubleshooting, the payload uses bounded four-second receive
+  windows. At the end of a window it transmits any queued `PING <counter>`,
+  waits for `radio_tx_ok`, and immediately opens the next receive window. The
+  range-test receiver prints that as an `RX ...` line which
+  `range-monitor.html` already charts.
+- USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
+  the configured radio profile at boot, radio state and receive counters once
+  per second, and an immediate `EVENT ... applied` line when a pump command
+  reaches PD2. The range monitor displays these lines without special parsing.
 - `PUMP_ON` sets PD2 high. `PUMP_OFF` sets PD2 low. These are the only accepted
-  radio payloads; malformed or unknown packets leave the pump unchanged. The
-  pump starts low and is also forced low by `Error_Handler`.
+  radio payloads; an optional transmitted CR, LF, or CRLF terminator is ignored
+  so line-oriented serial bridges work. Other malformed or unknown packets
+  leave the pump unchanged. The pump starts low and is also forced low by
+  `Error_Handler`.
 
 SPI2 is configured in the `.ioc` for eight-bit SPI mode 0 at 250 kHz with
 software-controlled chip select. PA4 is an initially-high `SD_CS` GPIO, and
@@ -90,3 +106,11 @@ Useful debugger globals include `accel_last_status`, `accel_latest_sample`,
 
 Protocol references are the local copies in `Docs/` and the
 [Microchip RN2483 command reference](https://ww1.microchip.com/downloads/en/DeviceDoc/RN2483-LoRa-Technology-Module-Command-Reference-User-Guide-DS40001784G.pdf).
+
+For pump-command troubleshooting, connect a 115200-baud adapter to USART1 TX
+(PA9) and watch the `RADIO` lines. `ready=1 phase=2` means the RN2483 is
+listening. If `lines` does not change, no module response or packet reached the
+firmware. Increasing `badpkt` means LoRa data arrived with the wrong payload;
+increasing `valid` followed by `EVENT PUMP_ON applied pump=1` proves the command
+was decoded and PD2 was driven high. The browser's serial write still requires
+the connected ground bridge to convert `PUMP_ON` into an LoRa transmission.
