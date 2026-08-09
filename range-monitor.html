@@ -52,6 +52,13 @@
   button.primary { background: var(--series-snr); border-color: transparent; color: #fff; }
   button.danger { background: var(--bad); border-color: transparent; color: #fff; }
   button:disabled { opacity: 0.45; cursor: default; }
+  .command-input { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+  .command-input input {
+    width: 64px; padding: 6px 7px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    font: inherit;
+  }
+  .command-input input:disabled { opacity: 0.45; }
   .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 6px; }
   .status-dot.live { background: #0ca30c; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
@@ -96,6 +103,13 @@
   <button class="primary" id="btnConnect">Connect serial</button>
   <button class="danger" id="btnPumpOn" disabled>Send PUMP_ON</button>
   <button id="btnPumpOff" disabled>Send PUMP_OFF</button>
+  <button id="btnLedOn" disabled>LED on</button>
+  <button id="btnLedOff" disabled>LED off</button>
+  <label class="command-input">LED PWM
+    <input id="ledPwmPercent" type="number" min="0" max="100" step="1" value="10" disabled>
+    %
+  </label>
+  <button id="btnLedPwm" disabled>Set PWM</button>
   <button id="btnDemo">Demo data</button>
   <button id="btnCsv" disabled>Export CSV</button>
   <button id="btnClear">Clear</button>
@@ -111,6 +125,7 @@
   <div class="tile"><div class="label">Last gap</div><div class="value" id="tDelay">–<small> s</small></div></div>
   <div class="tile"><div class="label">Payload radio</div><div class="value" id="tRadio">–</div></div>
   <div class="tile"><div class="label">Payload pump</div><div class="value" id="tPump">–</div></div>
+  <div class="tile"><div class="label">Payload LED duty</div><div class="value" id="tLed">–<small> %</small></div></div>
 </div>
 
 <div class="charts">
@@ -171,7 +186,7 @@ function handleLine(raw) {
   raw = raw.replace(/\r/g, "").trim();
   if (!raw) return;
 
-  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)/);
+  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)(?: led=(\d+))?/);
   if (radioStatus) {
     const phaseNames = [
       "config", "arm RX", "listening", "backoff", "send TX", "wait TX"
@@ -179,6 +194,9 @@ function handleLine(raw) {
     const phase = parseInt(radioStatus[2], 10);
     $("tRadio").textContent = phaseNames[phase] || ("phase " + phase);
     $("tPump").textContent = radioStatus[3] === "1" ? "ON" : "OFF";
+    if (radioStatus[4] !== undefined) {
+      $("tLed").innerHTML = radioStatus[4] + "<small> %</small>";
+    }
     addLog(raw, radioStatus[1] === "1" ? "rx" : "");
     return;
   }
@@ -190,7 +208,14 @@ function handleLine(raw) {
     return;
   }
 
-  const bridgeResult = raw.match(/^BRIDGE RADIO TX (PUMP_(?:ON|OFF)) (OK|FAILED)(?:\s|$)/);
+  const ledEvent = raw.match(/^EVENT (LED_(?:ON|OFF)|LED_PWM \d+) applied led=(\d+)/);
+  if (ledEvent) {
+    $("tLed").innerHTML = ledEvent[2] + "<small> %</small>";
+    addLog(raw, "rx");
+    return;
+  }
+
+  const bridgeResult = raw.match(/^BRIDGE RADIO TX (.+) (OK|FAILED)(?:\s|$)/);
   if (bridgeResult) {
     finishPendingCommand(bridgeResult[1]);
     addLog(raw, bridgeResult[2] === "OK" ? "rx" : "drop");
@@ -409,6 +434,22 @@ function updateCommandButtons() {
   const enabled = serialConnected && port && port.writable && !commandPending;
   $("btnPumpOn").disabled = !enabled;
   $("btnPumpOff").disabled = !enabled;
+  $("btnLedOn").disabled = !enabled;
+  $("btnLedOff").disabled = !enabled;
+  $("btnLedPwm").disabled = !enabled;
+  $("ledPwmPercent").disabled = !enabled;
+}
+
+function sendLedPwm() {
+  const input = $("ledPwmPercent");
+  const percent = Number(input.value);
+  if (input.value.trim() === "" || !input.checkValidity() ||
+      !Number.isInteger(percent) || percent < 0 || percent > 100) {
+    addLog("LED PWM must be a whole percentage from 0 through 100", "drop");
+    input.focus();
+    return;
+  }
+  sendSerialCommand("LED_PWM " + percent);
 }
 
 async function sendSerialCommand(command) {
@@ -495,13 +536,18 @@ function disconnectUi() {
   $("dot").classList.remove("live");
   $("connState").textContent = "disconnected";
   $("btnConnect").textContent = "Connect serial";
-  $("btnPumpOn").disabled = true;
-  $("btnPumpOff").disabled = true;
+  updateCommandButtons();
 }
 
 $("btnConnect").addEventListener("click", () => (port ? disconnect() : connect()));
 $("btnPumpOn").addEventListener("click", () => sendSerialCommand("PUMP_ON"));
 $("btnPumpOff").addEventListener("click", () => sendSerialCommand("PUMP_OFF"));
+$("btnLedOn").addEventListener("click", () => sendSerialCommand("LED_ON"));
+$("btnLedOff").addEventListener("click", () => sendSerialCommand("LED_OFF"));
+$("btnLedPwm").addEventListener("click", sendLedPwm);
+$("ledPwmPercent").addEventListener("keydown", event => {
+  if (event.key === "Enter") sendLedPwm();
+});
 
 /* ---------- demo mode (no hardware needed) ---------- */
 function stopDemo() {
@@ -549,6 +595,7 @@ $("btnClear").addEventListener("click", () => {
   $("tDelay").innerHTML = "–<small> s</small>";
   $("tRadio").textContent = "–";
   $("tPump").textContent = "–";
+  $("tLed").innerHTML = "–<small> %</small>";
   refresh();
 });
 

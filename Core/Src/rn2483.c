@@ -9,6 +9,7 @@
 #define RN2483_RECEIVE_WATCHDOG_MS 4000U
 #define RN2483_RETRY_DELAY_MS 1000U
 #define RN2483_CONFIGURATION_STEP_COUNT 24U
+#define RN2483_PAYLOAD_TEXT_SIZE 16U
 
 typedef enum {
     EXPECT_EXACT = 0,
@@ -276,31 +277,131 @@ static bool configuration_reply_matches(const rn2483_t *device,
     return strings_equal_case_insensitive(line, expected);
 }
 
-static bool radio_payload_matches(const char *line, const char *payload_hex)
+static int hex_nibble(char character)
+{
+    if (character >= '0' && character <= '9') {
+        return character - '0';
+    }
+    if (character >= 'A' && character <= 'F') {
+        return character - 'A' + 10;
+    }
+    if (character >= 'a' && character <= 'f') {
+        return character - 'a' + 10;
+    }
+    return -1;
+}
+
+static bool decode_radio_payload(const char *line,
+                                 char *text,
+                                 size_t text_size)
 {
     static const char prefix[] = "radio_rx";
-    if (strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
+    if (line == NULL || text == NULL || text_size < 2U ||
+        strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
         return false;
     }
 
-    const char *payload = line + (sizeof(prefix) - 1U);
-    if (*payload != ' ') {
+    const char *hex = line + (sizeof(prefix) - 1U);
+    if (*hex != ' ') {
         return false;
     }
-    while (*payload == ' ') {
-        payload++;
+    while (*hex == ' ') {
+        hex++;
     }
 
-    const size_t payload_length = strlen(payload_hex);
-    if (strncmp(payload, payload_hex, payload_length) != 0) {
+    uint8_t decoded[RN2483_PAYLOAD_TEXT_SIZE + 2U];
+    size_t decoded_length = 0U;
+    while (*hex != '\0') {
+        if (hex[1] == '\0' ||
+            decoded_length >= sizeof(decoded)) {
+            return false;
+        }
+        const int high = hex_nibble(hex[0]);
+        const int low = hex_nibble(hex[1]);
+        if (high < 0 || low < 0) {
+            return false;
+        }
+        decoded[decoded_length++] =
+            (uint8_t)(((uint8_t)high << 4U) | (uint8_t)low);
+        hex += 2;
+    }
+
+    size_t text_length = decoded_length;
+    if (text_length >= 2U &&
+        decoded[text_length - 2U] == (uint8_t)'\r' &&
+        decoded[text_length - 1U] == (uint8_t)'\n') {
+        text_length -= 2U;
+    } else if (text_length >= 1U &&
+               (decoded[text_length - 1U] == (uint8_t)'\r' ||
+                decoded[text_length - 1U] == (uint8_t)'\n')) {
+        text_length--;
+    }
+
+    if (text_length == 0U || text_length >= text_size) {
+        return false;
+    }
+    for (size_t index = 0U; index < text_length; index++) {
+        if (decoded[index] < 0x20U || decoded[index] > 0x7EU) {
+            return false;
+        }
+        text[index] = (char)decoded[index];
+    }
+    text[text_length] = '\0';
+    return true;
+}
+
+static bool parse_led_pwm(const char *text, uint8_t *percent)
+{
+    static const char prefix[] = "LED_PWM ";
+    if (strncmp(text, prefix, sizeof(prefix) - 1U) != 0) {
         return false;
     }
 
-    const char *suffix = payload + payload_length;
-    return suffix[0] == '\0' ||
-           strcmp(suffix, "0D") == 0 ||
-           strcmp(suffix, "0A") == 0 ||
-           strcmp(suffix, "0D0A") == 0;
+    const char *digits = text + (sizeof(prefix) - 1U);
+    if (*digits == '\0') {
+        return false;
+    }
+
+    uint16_t value = 0U;
+    for (size_t index = 0U; digits[index] != '\0'; index++) {
+        if (index >= 3U ||
+            digits[index] < '0' || digits[index] > '9') {
+            return false;
+        }
+        value = (uint16_t)((value * 10U) +
+                           (uint16_t)(digits[index] - '0'));
+        if (value > 100U) {
+            return false;
+        }
+    }
+
+    *percent = (uint8_t)value;
+    return true;
+}
+
+static bool parse_radio_event(const char *line, rn2483_event_t *event)
+{
+    char text[RN2483_PAYLOAD_TEXT_SIZE];
+    if (!decode_radio_payload(line, text, sizeof(text))) {
+        return false;
+    }
+
+    event->led_pwm_percent = 0U;
+    if (strcmp(text, "PUMP_ON") == 0) {
+        event->type = RN2483_EVENT_PUMP_ON;
+    } else if (strcmp(text, "PUMP_OFF") == 0) {
+        event->type = RN2483_EVENT_PUMP_OFF;
+    } else if (strcmp(text, "LED_ON") == 0) {
+        event->type = RN2483_EVENT_LED_ON;
+        event->led_pwm_percent = 100U;
+    } else if (strcmp(text, "LED_OFF") == 0) {
+        event->type = RN2483_EVENT_LED_OFF;
+    } else if (parse_led_pwm(text, &event->led_pwm_percent)) {
+        event->type = RN2483_EVENT_LED_PWM;
+    } else {
+        return false;
+    }
+    return true;
 }
 
 static void handle_complete_line(rn2483_t *device,
@@ -312,11 +413,9 @@ static void handle_complete_line(rn2483_t *device,
     memcpy(device->last_line, line, line_length + 1U);
 
     if (device->phase == RN2483_PHASE_LISTENING) {
-        if (radio_payload_matches(line, "50554D505F4F4E")) {
-            device->pending_event = RN2483_EVENT_PUMP_ON;
-            device->stats.valid_commands++;
-        } else if (radio_payload_matches(line, "50554D505F4F4646")) {
-            device->pending_event = RN2483_EVENT_PUMP_OFF;
+        rn2483_event_t event;
+        if (parse_radio_event(line, &event)) {
+            device->pending_event = event;
             device->stats.valid_commands++;
         } else if (strncmp(line, "radio_rx ", 9U) == 0) {
             device->stats.invalid_packets++;
@@ -500,14 +599,15 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms)
     }
 }
 
-rn2483_event_t rn2483_take_event(rn2483_t *device)
+bool rn2483_take_event(rn2483_t *device, rn2483_event_t *event)
 {
-    if (device == NULL) {
-        return RN2483_EVENT_NONE;
+    if (device == NULL || event == NULL ||
+        device->pending_event.type == RN2483_EVENT_NONE) {
+        return false;
     }
-    const rn2483_event_t event = device->pending_event;
-    device->pending_event = RN2483_EVENT_NONE;
-    return event;
+    *event = device->pending_event;
+    device->pending_event.type = RN2483_EVENT_NONE;
+    return true;
 }
 
 bool rn2483_is_ready(const rn2483_t *device)

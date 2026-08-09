@@ -56,6 +56,9 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
+void UVLED_SetDutyPercent(uint8_t percent);
+uint8_t UVLED_GetDutyPercent(void);
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

@@ -35,9 +35,10 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   tempo-compressed transcription of the four-bar opening violin run from "Can
   You Hear the Music," stops the buzzer low, and then hands the shared timer to
   the UV-emitter PWM setup.
-- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. A runtime override in the
-  protected user-code section runs it at 1 kHz with a 10% active-high LED-on
-  interval on the shared UV-emitter control net.
+- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. The active-low control runs
+  at 1 kHz and temporarily starts at 100% LED-on duty. `LED_ON` selects 100%, `LED_OFF`
+  selects 0%, and `LED_PWM <percent>` selects an integer duty from 0 through
+  100.
 - A preformatted FAT16 or FAT32 SD card on SPI2 is mounted without formatting.
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
@@ -52,17 +53,18 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   commands.
 - USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
   the configured radio profile at boot, radio state and receive counters once
-  per second, and an immediate `EVENT ... applied` line when a pump command
-  reaches PD2. The range monitor displays these lines without special parsing.
-- `PUMP_ON` sets PD2 high. `PUMP_OFF` sets PD2 low. These are the only accepted
-  radio payloads; an optional transmitted CR, LF, or CRLF terminator is ignored
-  so line-oriented serial bridges work. Other malformed or unknown packets
-  leave the pump unchanged. The pump starts low and is also forced low by
-  `Error_Handler`.
+  per second, and an immediate `EVENT ... applied` line when an output command
+  is applied. The range monitor displays these lines without special parsing.
+- `PUMP_ON` sets PD2 high and `PUMP_OFF` sets PD2 low. The LED commands described
+  above control the UV-emitter PWM. An optional transmitted CR, LF, or CRLF
+  terminator is ignored so line-oriented serial bridges work. Other malformed
+  or unknown packets leave both outputs unchanged. The pump and LED start off
+  and are also forced off by `Error_Handler`.
 
 The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
-ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`
-and `PUMP_OFF` lines from `range-monitor.html`. Reception is interrupt-driven,
+ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
+`PUMP_OFF`, `LED_ON`, `LED_OFF`, and `LED_PWM <percent>` lines from
+`range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. Between two-second
 receive slices the bridge converts the command to a raw-LoRa hex payload,
 transmits three copies with the same SF12/BW125/CR4/5/sync-0x34 profile, waits

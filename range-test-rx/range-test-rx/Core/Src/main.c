@@ -80,6 +80,7 @@ static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
 static bool Serial_TakeCommand(char *command, uint16_t command_size);
+static bool Serial_CommandValid(const char *command);
 static int Hex_Nibble(char c);
 /* USER CODE END PFP */
 
@@ -307,6 +308,51 @@ static bool Serial_TakeCommand(char *command, uint16_t command_size)
 }
 
 /**
+  * @brief Accept the fixed pump/LED commands or LED_PWM followed by 0..100.
+  */
+static bool Serial_CommandValid(const char *command)
+{
+  static const char led_pwm_prefix[] = "LED_PWM ";
+  if (strcmp(command, "PUMP_ON") == 0 ||
+      strcmp(command, "PUMP_OFF") == 0 ||
+      strcmp(command, "LED_ON") == 0 ||
+      strcmp(command, "LED_OFF") == 0)
+  {
+    return true;
+  }
+
+  if (strncmp(command,
+              led_pwm_prefix,
+              sizeof(led_pwm_prefix) - 1U) != 0)
+  {
+    return false;
+  }
+
+  const char *digits = command + (sizeof(led_pwm_prefix) - 1U);
+  if (*digits == '\0')
+  {
+    return false;
+  }
+
+  uint16_t percent = 0U;
+  for (size_t index = 0U; digits[index] != '\0'; index++)
+  {
+    if (index >= 3U ||
+        digits[index] < '0' || digits[index] > '9')
+    {
+      return false;
+    }
+    percent = (uint16_t)((percent * 10U) +
+                         (uint16_t)(digits[index] - '0'));
+    if (percent > 100U)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
   * @brief Assemble CR/LF-terminated WebSerial commands without blocking the
   *        RN2483 receive wait in the main loop.
   */
@@ -423,8 +469,10 @@ int main(void)
 
   RN2483_UART_Init();
 
-  /* Give the module time to boot, then discard its power-up banner. */
-  HAL_Delay(1000);
+  /* The RN2483 is powered separately and can still be finishing a receive
+     window after this MCU is reflashed/reset.  Wait through that window,
+     then discard its asynchronous radio_err/power-up output. */
+  HAL_Delay(RN2483_RX_WDT_MS + 250U);
   RN2483_Flush();
 
   /* Pause the LoRaWAN stack so raw "radio" commands can be used.
@@ -439,7 +487,20 @@ int main(void)
 
     for (;;)
     {
-      if (RN2483_Command("mac pause", resp, sizeof(resp), RN2483_RESP_TIMEOUT) == HAL_OK)
+      const HAL_StatusTypeDef pause_status =
+          RN2483_Command("mac pause", resp, sizeof(resp), RN2483_RESP_TIMEOUT);
+      bool pause_reply_valid =
+          (pause_status == HAL_OK && resp[0] != '\0' && strcmp(resp, "0") != 0);
+
+      for (size_t index = 0U; pause_reply_valid && resp[index] != '\0'; index++)
+      {
+        if (resp[index] < '0' || resp[index] > '9')
+        {
+          pause_reply_valid = false;
+        }
+      }
+
+      if (pause_reply_valid)
       {
         snprintf(dbg, sizeof(dbg), "RN2483 alive (mac pause -> %s)", resp);
         Debug_Log(dbg);
@@ -448,6 +509,14 @@ int main(void)
           snprintf(dbg, sizeof(dbg), "module firmware: %s", resp);
           Debug_Log(dbg);
         }
+
+        /* A module-side RX session survives an MCU-only reset.  Force it idle
+           after MAC pause has succeeded, then drain the rxstop outcome before
+           beginning the known-good radio configuration sequence. */
+        (void)RN2483_Command("radio rxstop", resp, sizeof(resp),
+                             RN2483_RESP_TIMEOUT);
+        HAL_Delay(200U);
+        RN2483_Flush();
         break;
       }
 
@@ -495,7 +564,7 @@ int main(void)
      so the loop stays alive and can re-arm even if nothing is heard. */
   RN2483_CommandChecked("radio set wdt 2000");
   Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
-  Debug_Log("bridge serial ready: send PUMP_ON or PUMP_OFF at 115200");
+  Debug_Log("bridge serial ready: PUMP_ON/OFF, LED_ON/OFF, LED_PWM 0..100");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -520,8 +589,7 @@ int main(void)
        the module is idle and can safely switch from RX to TX. */
     if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
     {
-      if (strcmp(serial_line, "PUMP_ON") == 0 ||
-          strcmp(serial_line, "PUMP_OFF") == 0)
+      if (Serial_CommandValid(serial_line))
       {
         char detail[32];
         HAL_StatusTypeDef transmit_status = HAL_OK;
@@ -530,7 +598,7 @@ int main(void)
                  (unsigned int)strlen(serial_line), serial_line);
         Debug_Log(out);
 
-        /* Pump commands are idempotent; repeat them for extra link margin. */
+        /* All accepted commands are idempotent; repeat for extra link margin. */
         for (uint8_t attempt = 0U; attempt < PUMP_COMMAND_REPEATS; attempt++)
         {
           transmit_status = RN2483_TransmitText(serial_line,

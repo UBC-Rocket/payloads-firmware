@@ -28,7 +28,15 @@ typedef enum {
 typedef enum {
     RN2483_EVENT_NONE = 0,
     RN2483_EVENT_PUMP_ON,
-    RN2483_EVENT_PUMP_OFF
+    RN2483_EVENT_PUMP_OFF,
+    RN2483_EVENT_LED_ON,
+    RN2483_EVENT_LED_OFF,
+    RN2483_EVENT_LED_PWM
+} rn2483_event_type_t;
+
+typedef struct {
+    rn2483_event_type_t type;
+    uint8_t led_pwm_percent;
 } rn2483_event_t;
 
 typedef struct {
@@ -108,9 +116,9 @@ void rn2483_on_rx_byte(rn2483_t *device, uint8_t byte);
 void rn2483_process(rn2483_t *device, uint32_t now_ms);
 
 /**
- * @brief Return and clear the next validated pump command.
+ * @brief Copy and clear the next validated payload command.
  */
-rn2483_event_t rn2483_take_event(rn2483_t *device);
+bool rn2483_take_event(rn2483_t *device, rn2483_event_t *event);
 
 bool rn2483_is_ready(const rn2483_t *device);
 

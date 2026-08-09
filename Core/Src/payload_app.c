@@ -68,6 +68,7 @@ volatile uint8_t uv_i2c_bus_number;
 volatile sd_logger_status_t payload_sd_status = SD_LOGGER_OFFLINE;
 volatile uint32_t payload_log_dropped_count;
 volatile bool payload_pump_on;
+volatile uint8_t payload_led_pwm_percent;
 volatile bool payload_radio_ready;
 
 static I2C_HandleTypeDef *uv_i2c_handles[UV_I2C_BUS_COUNT];
@@ -132,7 +133,7 @@ static void debug_radio_status(uint32_t now_ms, bool force)
         sizeof(line),
         "RADIO ready=%u phase=%u wait=%u lines=%lu valid=%lu "
         "badpkt=%lu badline=%lu timeout=%lu uart=%lu tx=%lu txerr=%lu "
-        "pump=%u last=\"%s\"\r\n",
+        "pump=%u led=%u last=\"%s\"\r\n",
         payload_radio_ready ? 1U : 0U,
         (unsigned int)radio.phase,
         radio.waiting_for_reply ? 1U : 0U,
@@ -145,6 +146,7 @@ static void debug_radio_status(uint32_t now_ms, bool force)
         (unsigned long)radio.stats.transmitted_packets,
         (unsigned long)radio.stats.transmit_failures,
         payload_pump_on ? 1U : 0U,
+        payload_led_pwm_percent,
         radio.stats.received_lines == 0U ? "-" : radio.last_line);
     if (length > 0 && (size_t)length < sizeof(line)) {
         debug_transmit(line);
@@ -167,6 +169,12 @@ static void set_pump(bool on)
                       PUMP_CTRL_Pin,
                       on ? GPIO_PIN_SET : GPIO_PIN_RESET);
     payload_pump_on = on;
+}
+
+static void set_led_pwm(uint8_t percent)
+{
+    UVLED_SetDutyPercent(percent);
+    payload_led_pwm_percent = UVLED_GetDutyPercent();
 }
 
 static uint8_t sensor_error_mask(void)
@@ -281,13 +289,31 @@ static void process_radio(uint32_t now_ms)
     }
 
     rn2483_event_t event;
-    while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
-        if (event == RN2483_EVENT_PUMP_ON) {
+    while (rn2483_take_event(&radio, &event)) {
+        if (event.type == RN2483_EVENT_PUMP_ON) {
             set_pump(true);
             debug_transmit("EVENT PUMP_ON applied pump=1\r\n");
-        } else if (event == RN2483_EVENT_PUMP_OFF) {
+        } else if (event.type == RN2483_EVENT_PUMP_OFF) {
             set_pump(false);
             debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
+        } else if (event.type == RN2483_EVENT_LED_ON) {
+            set_led_pwm(100U);
+            debug_transmit("EVENT LED_ON applied led=100\r\n");
+        } else if (event.type == RN2483_EVENT_LED_OFF) {
+            set_led_pwm(0U);
+            debug_transmit("EVENT LED_OFF applied led=0\r\n");
+        } else if (event.type == RN2483_EVENT_LED_PWM) {
+            set_led_pwm(event.led_pwm_percent);
+            char line[DEBUG_LINE_SIZE];
+            const int length = snprintf(
+                line,
+                sizeof(line),
+                "EVENT LED_PWM %u applied led=%u\r\n",
+                event.led_pwm_percent,
+                payload_led_pwm_percent);
+            if (length > 0 && (size_t)length < sizeof(line)) {
+                debug_transmit(line);
+            }
         }
     }
 
@@ -440,6 +466,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     uv_next_poll_ms = now_ms;
     radio_reported_invalid_packets = 0U;
     set_pump(false);
+    /* Temporary hardware checkout: keep the UV LED array on after app init. */
+    set_led_pwm(100U);
 
     initialize_accelerometer(now_ms);
     initialize_uv_sensor(now_ms);

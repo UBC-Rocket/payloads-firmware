@@ -33,7 +33,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UVLED_PWM_PERIOD_TICKS 64000U
-#define UVLED_PWM_ON_TICKS 1U
 #define TIM2_INPUT_CLOCK_HZ 64000000U
 #define BUZZER_TIMER_PRESCALER 63U
 #define BUZZER_TIMER_TICK_HZ \
@@ -84,6 +83,29 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static volatile uint8_t uvled_duty_percent;
+
+void UVLED_SetDutyPercent(uint8_t percent)
+{
+  if (percent > 100U)
+  {
+    percent = 100U;
+  }
+
+  uvled_duty_percent = percent;
+  if (htim2.Instance == TIM2)
+  {
+    const uint32_t pulse_ticks =
+      ((uint32_t)percent * UVLED_PWM_PERIOD_TICKS) / 100U;
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pulse_ticks);
+  }
+}
+
+uint8_t UVLED_GetDutyPercent(void)
+{
+  return uvled_duty_percent;
+}
+
 static void update_buzzer_output(uint32_t period_ticks,
                                  uint32_t pulse_ticks)
 {
@@ -204,12 +226,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
   play_startup_song();
 
-  /* Override TIM2_CH2 only at runtime to generate 1 kHz with a 10%
-     active-high LED-on interval. */
+  /* UVLED_CTRL is active-low. PWM1 with low output polarity makes the compare
+     value directly represent LED-on duty: 0% is high/off, 100% is low/on. */
   TIM_OC_InitTypeDef uvled_pwm = {0};
   uvled_pwm.OCMode = TIM_OCMODE_PWM1;
-  uvled_pwm.Pulse = UVLED_PWM_ON_TICKS;
-  uvled_pwm.OCPolarity = TIM_OCPOLARITY_HIGH;
+  uvled_pwm.Pulse = 0U;
+  uvled_pwm.OCPolarity = TIM_OCPOLARITY_LOW;
   uvled_pwm.OCFastMode = TIM_OCFAST_DISABLE;
 
   __HAL_TIM_DISABLE(&htim2);
@@ -230,6 +252,8 @@ int main(void)
   {
     Error_Handler();
   }
+  /* Temporary hardware checkout: turn the UV LED array fully on at boot. */
+  UVLED_SetDutyPercent(100U);
 
   payload_app_init(&hi2c1,
                    &hi2c2,
@@ -840,6 +864,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  UVLED_SetDutyPercent(0U);
   HAL_GPIO_WritePin(PUMP_CTRL_GPIO_Port, PUMP_CTRL_Pin, GPIO_PIN_RESET);
   __disable_irq();
   while (1)
