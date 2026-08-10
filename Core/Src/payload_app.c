@@ -33,10 +33,9 @@
 #error RN2483_RADIO_SYNC_WORD must be supplied by CMake
 #endif
 
-#define UV_I2C_BUS_COUNT 3U
+#define UV_I2C_BUS_NUMBER 3U
 #define UV_POLL_INTERVAL_MS 10U
 #define UV_RETRY_INTERVAL_MS 1000U
-#define UV_WINDOW_FACTOR 1.0f
 #define ACCEL_POLL_INTERVAL_MS 20U
 #define ACCEL_RETRY_INTERVAL_MS 1000U
 #define ACCEL_SAMPLE_INTERVAL_MS 10U
@@ -44,6 +43,8 @@
 #define DEBUG_STATUS_INTERVAL_MS 1000U
 #define DEBUG_UART_TIMEOUT_MS 50U
 #define DEBUG_LINE_SIZE 320U
+#define PING_REPLY_DELAY_MS 250U
+#define UV_I2C_TIMEOUT_MS 50U
 
 #define SENSOR_ERROR_ACCEL 0x01U
 #define SENSOR_ERROR_UV 0x02U
@@ -71,7 +72,7 @@ volatile bool payload_pump_on;
 volatile uint8_t payload_led_pwm_percent;
 volatile bool payload_radio_ready;
 
-static I2C_HandleTypeDef *uv_i2c_handles[UV_I2C_BUS_COUNT];
+static I2C_HandleTypeDef *uv_i2c_handle;
 static SPI_HandleTypeDef *payload_sd_spi;
 static SPI_HandleTypeDef *payload_accel_spi;
 static UART_HandleTypeDef *payload_radio_uart;
@@ -83,10 +84,15 @@ static rn2483_stm32_bus_t radio_bus;
 static bool radio_initialized;
 static uint32_t debug_next_status_ms;
 static uint32_t radio_reported_invalid_packets;
+static uint32_t ping_reply_at_ms;
+static bool ping_reply_pending;
 
 static uint32_t uv_next_poll_ms;
 static uint32_t uv_retry_at_ms;
 static uint8_t uv_consecutive_errors;
+static bool uv_address_ack;
+static uint32_t uv_address_error;
+static uint32_t uv_init_hal_error;
 static bool uv_valid;
 static bool uv_new;
 static uint32_t accel_next_poll_ms;
@@ -98,6 +104,18 @@ static uint64_t tick_epoch;
 static uint64_t last_accel_timestamp_ms;
 static bool accel_timeline_valid;
 static uint64_t synthetic_next_ms;
+
+typedef struct {
+    GPIO_TypeDef *port;
+    uint16_t scl_pin;
+    uint16_t sda_pin;
+} uv_i2c_pins_t;
+
+static const uv_i2c_pins_t uv_i2c_pins = {
+    .port = GPIOB,
+    .scl_pin = GPIO_PIN_3,
+    .sda_pin = GPIO_PIN_4,
+};
 
 static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
@@ -118,6 +136,56 @@ static void debug_transmit(const char *text)
                             (uint8_t *)text,
                             (uint16_t)length,
                             DEBUG_UART_TIMEOUT_MS);
+}
+
+static bool recover_uv_i2c_bus(void)
+{
+    if (uv_i2c_handle == NULL) {
+        return false;
+    }
+
+    I2C_HandleTypeDef *i2c = uv_i2c_handle;
+    const uv_i2c_pins_t *pins = &uv_i2c_pins;
+    if (HAL_I2C_DeInit(i2c) != HAL_OK) {
+        return false;
+    }
+
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin = pins->scl_pin | pins->sda_pin;
+    gpio.Mode = GPIO_MODE_OUTPUT_OD;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_WritePin(pins->port, gpio.Pin, GPIO_PIN_SET);
+    HAL_GPIO_Init(pins->port, &gpio);
+    HAL_Delay(1U);
+
+    /* A slave can hold SDA low if the MCU reset in the middle of a byte.
+       Nine SCL pulses finish that byte, then the transitions below issue a
+       STOP and return both lines to their idle-high state. */
+    for (uint32_t pulse = 0U; pulse < 9U; pulse++) {
+        HAL_GPIO_WritePin(pins->port, pins->scl_pin, GPIO_PIN_RESET);
+        HAL_Delay(1U);
+        HAL_GPIO_WritePin(pins->port, pins->scl_pin, GPIO_PIN_SET);
+        HAL_Delay(1U);
+    }
+    HAL_GPIO_WritePin(pins->port, pins->scl_pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(pins->port, pins->sda_pin, GPIO_PIN_RESET);
+    HAL_Delay(1U);
+    HAL_GPIO_WritePin(pins->port, pins->scl_pin, GPIO_PIN_SET);
+    HAL_Delay(1U);
+    HAL_GPIO_WritePin(pins->port, pins->sda_pin, GPIO_PIN_SET);
+    HAL_Delay(1U);
+
+    const bool lines_released =
+        HAL_GPIO_ReadPin(pins->port, pins->scl_pin) == GPIO_PIN_SET &&
+        HAL_GPIO_ReadPin(pins->port, pins->sda_pin) == GPIO_PIN_SET;
+
+    if (HAL_I2C_Init(i2c) != HAL_OK ||
+        HAL_I2CEx_ConfigAnalogFilter(i2c, I2C_ANALOGFILTER_ENABLE) != HAL_OK ||
+        HAL_I2CEx_ConfigDigitalFilter(i2c, 0U) != HAL_OK) {
+        return false;
+    }
+    return lines_released;
 }
 
 static void debug_radio_status(uint32_t now_ms, bool force)
@@ -148,6 +216,48 @@ static void debug_radio_status(uint32_t now_ms, bool force)
         payload_pump_on ? 1U : 0U,
         payload_led_pwm_percent,
         radio.stats.received_lines == 0U ? "-" : radio.last_line);
+    if (length > 0 && (size_t)length < sizeof(line)) {
+        debug_transmit(line);
+    }
+}
+
+static void debug_uv_sample(uint32_t now_ms, uint32_t raw)
+{
+    char line[DEBUG_LINE_SIZE];
+    const int length = snprintf(
+        line,
+        sizeof(line),
+        "UV sample time_ms=%lu raw=%lu raw_valid=1 uvi_valid=0 "
+        "count=%lu errors=%lu bus=%u\r\n",
+        (unsigned long)now_ms,
+        (unsigned long)raw,
+        (unsigned long)uv_sample_count,
+        (unsigned long)uv_error_count,
+        (unsigned int)uv_i2c_bus_number);
+    if (length > 0 && (size_t)length < sizeof(line)) {
+        debug_transmit(line);
+    }
+}
+
+static void debug_uv_read_error(uint32_t now_ms,
+                                ltr390_status_t status,
+                                uint8_t consecutive_errors)
+{
+    const uint32_t hal_error = uv_i2c_handle == NULL
+                                   ? HAL_I2C_ERROR_NONE
+                                   : HAL_I2C_GetError(uv_i2c_handle);
+    char line[DEBUG_LINE_SIZE];
+    const int length = snprintf(
+        line,
+        sizeof(line),
+        "UV read time_ms=%lu status=%u hal=%lu consecutive=%u "
+        "errors=%lu bus=%u\r\n",
+        (unsigned long)now_ms,
+        (unsigned int)status,
+        (unsigned long)hal_error,
+        (unsigned int)consecutive_errors,
+        (unsigned long)uv_error_count,
+        (unsigned int)uv_i2c_bus_number);
     if (length > 0 && (size_t)length < sizeof(line)) {
         debug_transmit(line);
     }
@@ -244,18 +354,47 @@ static void initialize_uv_sensor(uint32_t now_ms)
     uv_i2c_bus_number = 0U;
     uv_valid = false;
 
-    for (size_t index = 0U; index < UV_I2C_BUS_COUNT; index++) {
-        status = ltr390_stm32_bind(&huv,
-                                   &huv_bus,
-                                   uv_i2c_handles[index],
-                                   10U);
-        if (status == LTR390_OK) {
-            status = ltr390_init(&huv, &ltr390_default_uvs_config);
+    uv_address_ack = false;
+    uv_address_error = HAL_I2C_ERROR_NONE;
+    uv_init_hal_error = HAL_I2C_ERROR_NONE;
+
+    if (uv_i2c_handle != NULL) {
+        HAL_StatusTypeDef address_status =
+            HAL_I2C_IsDeviceReady(
+                uv_i2c_handle,
+                (uint16_t)(LTR390_I2C_ADDRESS << 1U),
+                1U,
+                UV_I2C_TIMEOUT_MS);
+        uv_address_error = HAL_I2C_GetError(uv_i2c_handle);
+
+        if (address_status != HAL_OK &&
+            (uv_address_error &
+             (HAL_I2C_ERROR_BERR | HAL_I2C_ERROR_TIMEOUT)) != 0U &&
+            recover_uv_i2c_bus()) {
+            address_status =
+                HAL_I2C_IsDeviceReady(
+                    uv_i2c_handle,
+                    (uint16_t)(LTR390_I2C_ADDRESS << 1U),
+                    1U,
+                    UV_I2C_TIMEOUT_MS);
+            uv_address_error = HAL_I2C_GetError(uv_i2c_handle);
         }
-        if (status == LTR390_OK) {
-            uv_i2c_bus_number = (uint8_t)(index + 1U);
-            break;
+
+        uv_address_ack = address_status == HAL_OK;
+        if (uv_address_ack) {
+            status = ltr390_stm32_bind(&huv,
+                                       &huv_bus,
+                                       uv_i2c_handle,
+                                       UV_I2C_TIMEOUT_MS);
+            if (status == LTR390_OK) {
+                status = ltr390_init(&huv, &ltr390_default_uvs_config);
+            }
+            uv_init_hal_error = HAL_I2C_GetError(uv_i2c_handle);
         }
+    }
+
+    if (status == LTR390_OK) {
+        uv_i2c_bus_number = UV_I2C_BUS_NUMBER;
     }
 
     uv_last_status = status;
@@ -263,6 +402,26 @@ static void initialize_uv_sensor(uint32_t now_ms)
     if (status != LTR390_OK) {
         uv_error_count++;
         uv_retry_at_ms = now_ms + UV_RETRY_INTERVAL_MS;
+    } else {
+        uv_next_poll_ms = now_ms;
+    }
+
+    char line[DEBUG_LINE_SIZE];
+    const int length = snprintf(
+        line,
+        sizeof(line),
+        "UV init status=%u bus=%u ack=%u:%lu init_hal=%lu lines=%u%u\r\n",
+        (unsigned int)status,
+        (unsigned int)uv_i2c_bus_number,
+        uv_address_ack ? 1U : 0U,
+        (unsigned long)uv_address_error,
+        (unsigned long)uv_init_hal_error,
+        HAL_GPIO_ReadPin(uv_i2c_pins.port,
+                         uv_i2c_pins.scl_pin) == GPIO_PIN_SET ? 1U : 0U,
+        HAL_GPIO_ReadPin(uv_i2c_pins.port,
+                         uv_i2c_pins.sda_pin) == GPIO_PIN_SET ? 1U : 0U);
+    if (length > 0 && (size_t)length < sizeof(line)) {
+        debug_transmit(line);
     }
 }
 
@@ -271,6 +430,19 @@ static void process_radio(uint32_t now_ms)
     if (!radio_initialized) {
         payload_radio_ready = false;
         return;
+    }
+
+    if (ping_reply_pending) {
+        if (!deadline_reached(now_ms, ping_reply_at_ms)) {
+            payload_radio_ready = false;
+            return;
+        }
+        ping_reply_pending = false;
+        if (rn2483_send_text(&radio, "PONG")) {
+            debug_transmit("EVENT PING reply=PONG queued\r\n");
+        } else {
+            debug_transmit("EVENT PING reply=PONG failed\r\n");
+        }
     }
 
     rn2483_process(&radio, now_ms);
@@ -289,31 +461,19 @@ static void process_radio(uint32_t now_ms)
     }
 
     rn2483_event_t event;
-    while (rn2483_take_event(&radio, &event)) {
-        if (event.type == RN2483_EVENT_PUMP_ON) {
+    while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
+        if (event == RN2483_EVENT_PUMP_ON) {
             set_pump(true);
             debug_transmit("EVENT PUMP_ON applied pump=1\r\n");
-        } else if (event.type == RN2483_EVENT_PUMP_OFF) {
+        } else if (event == RN2483_EVENT_PUMP_OFF) {
             set_pump(false);
             debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
-        } else if (event.type == RN2483_EVENT_LED_ON) {
-            set_led_pwm(100U);
-            debug_transmit("EVENT LED_ON applied led=100\r\n");
-        } else if (event.type == RN2483_EVENT_LED_OFF) {
-            set_led_pwm(0U);
-            debug_transmit("EVENT LED_OFF applied led=0\r\n");
-        } else if (event.type == RN2483_EVENT_LED_PWM) {
-            set_led_pwm(event.led_pwm_percent);
-            char line[DEBUG_LINE_SIZE];
-            const int length = snprintf(
-                line,
-                sizeof(line),
-                "EVENT LED_PWM %u applied led=%u\r\n",
-                event.led_pwm_percent,
-                payload_led_pwm_percent);
-            if (length > 0 && (size_t)length < sizeof(line)) {
-                debug_transmit(line);
-            }
+        } else if (event == RN2483_EVENT_PING) {
+            /* Hold the RN2483 idle briefly so the bridge has time to switch
+               from transmit completion into receive mode before PONG starts. */
+            ping_reply_at_ms = now_ms + PING_REPLY_DELAY_MS;
+            ping_reply_pending = true;
+            debug_transmit("EVENT PING received reply=PONG pending\r\n");
         }
     }
 
@@ -336,13 +496,20 @@ static void process_uv(uint32_t now_ms)
     bool ready = false;
     ltr390_status_t status = ltr390_data_ready(&huv, &ready);
     if (status == LTR390_OK && ready) {
-        ltr390_uvs_sample_t sample;
-        status = ltr390_read_uvs(&huv, UV_WINDOW_FACTOR, &sample);
+        ltr390_uvs_sample_t sample = {
+            .raw = 0U,
+            .uvi = 0.0f,
+            .uvi_valid = false,
+        };
+        /* Log the sensor count without inventing an optical-window factor.
+           UVI can only be produced after the assembled payload is calibrated. */
+        status = ltr390_read_raw(&huv, &sample.raw);
         if (status == LTR390_OK) {
             uv_latest_sample = sample;
             uv_sample_count++;
             uv_valid = true;
             uv_new = true;
+            debug_uv_sample(now_ms, sample.raw);
         }
     }
 
@@ -351,7 +518,9 @@ static void process_uv(uint32_t now_ms)
         uv_consecutive_errors = 0U;
     } else {
         uv_error_count++;
-        if (++uv_consecutive_errors >= SENSOR_MAX_CONSECUTIVE_ERRORS) {
+        uv_consecutive_errors++;
+        debug_uv_read_error(now_ms, status, uv_consecutive_errors);
+        if (uv_consecutive_errors >= SENSOR_MAX_CONSECUTIVE_ERRORS) {
             huv.initialized = false;
             uv_i2c_bus_number = 0U;
             uv_valid = false;
@@ -443,17 +612,13 @@ static void process_accelerometer(uint32_t now_ms, uint64_t now_extended_ms)
     }
 }
 
-void payload_app_init(I2C_HandleTypeDef *i2c1,
-                      I2C_HandleTypeDef *i2c2,
-                      I2C_HandleTypeDef *i2c3,
+void payload_app_init(I2C_HandleTypeDef *i2c3,
                       SPI_HandleTypeDef *sd_spi,
                       SPI_HandleTypeDef *accel_spi,
                       UART_HandleTypeDef *radio_uart,
                       UART_HandleTypeDef *debug_uart)
 {
-    uv_i2c_handles[0] = i2c1;
-    uv_i2c_handles[1] = i2c2;
-    uv_i2c_handles[2] = i2c3;
+    uv_i2c_handle = i2c3;
     payload_sd_spi = sd_spi;
     payload_accel_spi = accel_spi;
     payload_radio_uart = radio_uart;
@@ -465,6 +630,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c1,
     synthetic_next_ms = now_ms;
     uv_next_poll_ms = now_ms;
     radio_reported_invalid_packets = 0U;
+    ping_reply_at_ms = 0U;
+    ping_reply_pending = false;
     set_pump(false);
     /* Temporary hardware checkout: keep the UV LED array on after app init. */
     set_led_pwm(100U);

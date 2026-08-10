@@ -67,7 +67,7 @@ uint8_t UVLED_GetDutyPercent(void);
 #define BUZZER_Pin GPIO_PIN_0
 #define BUZZER_GPIO_Port GPIOA
 #define UVLED_CTRL_Pin GPIO_PIN_1
-#define UVLED_CTRL_GPIO_Port GPIOA
+#define UVLED_CTRL_GPIO_Port GPIOD
 #define SD_CS_Pin GPIO_PIN_4
 #define SD_CS_GPIO_Port GPIOA
 #define CARD_DETECT_Pin GPIO_PIN_0
@@ -86,8 +86,6 @@ uint8_t UVLED_GetDutyPercent(void);
 #define ACC_CS_GPIO_Port GPIOA
 #define GYRO_CS_Pin GPIO_PIN_15
 #define GYRO_CS_GPIO_Port GPIOA
-#define TEMP_SENSOR_Pin GPIO_PIN_1
-#define TEMP_SENSOR_GPIO_Port GPIOD
 #define PUMP_CTRL_Pin GPIO_PIN_2
 #define PUMP_CTRL_GPIO_Port GPIOD
 #define VBAT_TRIGGER_Pin GPIO_PIN_3

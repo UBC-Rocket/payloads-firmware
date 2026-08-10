@@ -29,14 +29,7 @@ typedef enum {
     RN2483_EVENT_NONE = 0,
     RN2483_EVENT_PUMP_ON,
     RN2483_EVENT_PUMP_OFF,
-    RN2483_EVENT_LED_ON,
-    RN2483_EVENT_LED_OFF,
-    RN2483_EVENT_LED_PWM
-} rn2483_event_type_t;
-
-typedef struct {
-    rn2483_event_type_t type;
-    uint8_t led_pwm_percent;
+    RN2483_EVENT_PING
 } rn2483_event_t;
 
 typedef struct {
@@ -116,18 +109,18 @@ void rn2483_on_rx_byte(rn2483_t *device, uint8_t byte);
 void rn2483_process(rn2483_t *device, uint32_t now_ms);
 
 /**
- * @brief Copy and clear the next validated payload command.
+ * @brief Return and clear the next validated payload command.
  */
-bool rn2483_take_event(rn2483_t *device, rn2483_event_t *event);
+rn2483_event_t rn2483_take_event(rn2483_t *device);
 
 bool rn2483_is_ready(const rn2483_t *device);
 
 /**
  * @brief Queue one ASCII payload for raw-LoRa transmission.
  *
- * The request may be queued while the driver configures or listens. A queued
- * packet is sent once the bounded receive window completes, and the driver then
- * automatically returns to receive mode.
+ * The request may be queued while the driver configures or when the module is
+ * idle after a received packet. The driver automatically returns to receive
+ * mode after transmission.
  */
 bool rn2483_send_text(rn2483_t *device, const char *payload);
 

@@ -28,17 +28,20 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
 - The BMI088 accelerometer on SPI1 runs at ±6 g, 100 Hz, and normal bandwidth.
   Its 1024-byte FIFO is drained every 20 ms so short SD-card stalls do not lose
   acquisition timing.
-- The single LTR390 is detected on the configured 100 kHz I2C1, I2C2, and I2C3
-  headers in that order. Once found, only that instance is sampled. It runs in
-  UV mode at 20-bit resolution, a 500 ms measurement period, and 18x gain.
-- PA0 drives the passive buzzer from TIM2 channel 1. At startup it plays a
-  tempo-compressed transcription of the four-bar opening violin run from "Can
-  You Hear the Music," stops the buzzer low, and then hands the shared timer to
-  the UV-emitter PWM setup.
-- PA1 is `UVLED_CTRL`/TIM2 channel 2 in the `.ioc`. The active-low control runs
-  at 1 kHz and temporarily starts at 100% LED-on duty. `LED_ON` selects 100%, `LED_OFF`
-  selects 0%, and `LED_PWM <percent>` selects an integer duty from 0 through
-  100.
+- The single LTR390 is addressed only through the configured 100 kHz I2C3
+  interface on PB3/PB4. It runs in UV mode at 20-bit resolution, a 500 ms
+  measurement period, and 18x gain. The
+  logged value is the coherent raw 20-bit count; converting it to ambient UVI
+  requires a calibrated optical-window factor for the assembled payload. I2C3
+  must have the datasheet-recommended 1 kOhm to 10 kOhm pull-ups
+  on SDA and SCL; MCU-internal pull-ups are not a substitute.
+- PA0 drives the passive buzzer from TIM2 channel 1. At startup it plays the
+  ten-bar right-hand line shown for "Can You Hear the Music," including the
+  marked dotted-quarter tempos of 50, 65, and 60 BPM, then stops the buzzer
+  output low. TIM2 no longer drives the UV LED.
+- PD1 is the `UVLED_CTRL` GPIO and is driven high during startup.
+  It is not controlled by the radio command path and is not connected to a
+  timer channel.
 - A preformatted FAT16 or FAT32 SD card on SPI2 is mounted without formatting.
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
@@ -47,29 +50,35 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   and `0x55` synchronization sequence, pauses the MAC, applies and reads back the
   required raw-LoRa profile at 433575000 Hz, then enters continuous receive
   mode.
-- The payload uses bounded four-second receive windows and immediately opens a
-  new window whenever the RN2483 watchdog expires. It does not transmit
-  periodic PING packets, so the radio remains dedicated to receiving pump
-  commands.
+- The payload disables the RN2483 radio watchdog and uses continuous reception,
+  as required by the module command reference. After a received packet or a
+  module-reported receive error, it immediately opens a new receive session. It
+  does not transmit periodic traffic. A received `PING` is the only link-check
+  request and causes a one-shot `PONG` reply after a short turnaround delay.
 - USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
   the configured radio profile at boot, radio state and receive counters once
-  per second, and an immediate `EVENT ... applied` line when an output command
-  is applied. The range monitor displays these lines without special parsing.
-- `PUMP_ON` sets PD2 high and `PUMP_OFF` sets PD2 low. The LED commands described
-  above control the UV-emitter PWM. An optional transmitted CR, LF, or CRLF
-  terminator is ignored so line-oriented serial bridges work. Other malformed
-  or unknown packets leave both outputs unchanged. The pump and LED start off
-  and are also forced off by `Error_Handler`.
+  per second, and an immediate `EVENT ... applied` line when a pump command
+  is applied. Each new LTR390 conversion prints `UV sample` with its timestamp,
+  raw count, validity, counters, and I2C3 bus number; failed reads print
+  `UV read` diagnostics. The range monitor displays these lines without special
+  parsing.
+- `PUMP_ON` sets PD2 high and `PUMP_OFF` sets PD2 low. `PING` leaves all outputs
+  unchanged and replies with `PONG`. These are the only accepted radio
+  payloads. An optional transmitted CR, LF, or CRLF terminator is ignored so
+  line-oriented serial bridges work. Other malformed or unknown packets leave
+  the pump unchanged. The pump starts low and the UV LED starts high; both are
+  forced low by `Error_Handler`.
 
 The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
 ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
-`PUMP_OFF`, `LED_ON`, `LED_OFF`, and `LED_PWM <percent>` lines from
-`range-monitor.html`. Reception is interrupt-driven,
+`PUMP_OFF`, and `PING` lines from `range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. Between two-second
-receive slices the bridge converts the command to a raw-LoRa hex payload,
-transmits three copies with the same SF12/BW125/CR4/5/sync-0x34 profile, waits
-for each `radio_tx_ok`, and returns to receive mode. Repetition gives the
-idempotent pump command extra link margin. `BRIDGE SERIAL RX ...` confirms the
+receive slices the bridge converts the command to a raw-LoRa hex payload. Pump
+commands are transmitted three times with the same SF12/BW125/CR4/5/sync-0x34
+profile; `PING` is transmitted once. The bridge waits for each `radio_tx_ok`
+and returns to receive mode. Repetition gives the idempotent pump command extra
+link margin. Ping success is only
+reported after the payload returns `PONG`. `BRIDGE SERIAL RX ...` confirms the
 browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
 RN2483 completed all transmissions (it is not an acknowledgement from the
 payload).
@@ -94,7 +103,7 @@ time_ms,accel_x_raw,accel_y_raw,accel_z_raw,uv_raw,accel_valid,uv_valid,uv_new,s
 
 `uv_valid` identifies whether the cached reading is valid and `uv_new`
 identifies the row that first records a new conversion. `uv_i2c_bus_number` is
-1, 2, or 3 for the detected connector and zero while the sensor is unavailable.
+3 while the sensor is available and zero while it is unavailable.
 Error and dropped-record counters make degraded operation visible instead of
 silently producing plausible-looking data.
 

@@ -32,7 +32,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define UVLED_PWM_PERIOD_TICKS 64000U
 #define TIM2_INPUT_CLOCK_HZ 64000000U
 #define BUZZER_TIMER_PRESCALER 63U
 #define BUZZER_TIMER_TICK_HZ \
@@ -87,18 +86,12 @@ static volatile uint8_t uvled_duty_percent;
 
 void UVLED_SetDutyPercent(uint8_t percent)
 {
-  if (percent > 100U)
-  {
-    percent = 100U;
-  }
-
-  uvled_duty_percent = percent;
-  if (htim2.Instance == TIM2)
-  {
-    const uint32_t pulse_ticks =
-      ((uint32_t)percent * UVLED_PWM_PERIOD_TICKS) / 100U;
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, pulse_ticks);
-  }
+  /* PD1 is a GPIO, not the former TIM2 PWM output. Report the state that is
+     physically applied: zero requests low and every nonzero request high. */
+  uvled_duty_percent = percent == 0U ? 0U : 100U;
+  HAL_GPIO_WritePin(UVLED_CTRL_GPIO_Port,
+                    UVLED_CTRL_Pin,
+                    uvled_duty_percent == 0U ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
 uint8_t UVLED_GetDutyPercent(void)
@@ -122,26 +115,26 @@ static void update_buzzer_output(uint32_t period_ticks,
 
 static void play_startup_song(void)
 {
-  /* Four opening bars from the 6/8 violin run. Each group advances one
-     G-major scale degree while retaining the score's 1-2-3-5-6-4 shape. */
+  typedef struct
+  {
+    int8_t first_scale_index;
+    int8_t scale_step;
+    uint8_t group_count;
+    uint8_t pattern_index;
+    uint8_t dotted_quarter_bpm;
+  } startup_song_section_t;
+
+  /* G-major scale covering the complete right-hand line in bars 1-10. */
   static const uint16_t scale_frequency_hz[] = {
-    294U,  /* D4 */
-    330U,  /* E4 */
-    370U,  /* F#4 */
-    392U,  /* G4 */
-    440U,  /* A4 */
-    494U,  /* B4 */
-    523U,  /* C5 */
-    587U,  /* D5 */
-    659U,  /* E5 */
-    740U,  /* F#5 */
-    784U,  /* G5 */
-    880U,  /* A5 */
-    988U,  /* B5 */
+    262U,  /* C4 */
   };
-  static const uint8_t run_pattern[] = {0U};
-  static const uint16_t note_duration_ms[] = {
-    120U, 120U, 110U, 110U, 100U, 90U, 80U, 70U,
+  static const uint8_t run_pattern[][6] = {
+    {0U, 1U, 2U, 4U, 5U, 3U},  /* Rising six-note contour. */
+    {5U, 4U, 3U, 1U, 0U, 2U},  /* Falling six-note contour. */
+  };
+  static const startup_song_section_t sections[] = {
+    /* Bars 1-4, bars 5-8, then the bars 9-10 reprise. */
+    {1,  1, 8U, 0U, 50U},
   };
 
   __HAL_TIM_DISABLE(&htim2);
@@ -155,24 +148,40 @@ static void play_startup_song(void)
     Error_Handler();
   }
 
-  for (uint32_t group_index = 0U;
-       group_index < (sizeof(note_duration_ms) /
-                      sizeof(note_duration_ms[0]));
-       group_index++)
+  for (uint32_t section_index = 0U;
+       section_index < (sizeof(sections) / sizeof(sections[0]));
+       section_index++)
   {
-    for (uint32_t pattern_index = 0U;
-         pattern_index < (sizeof(run_pattern) / sizeof(run_pattern[0]));
-         pattern_index++)
-    {
-      const uint32_t scale_index = group_index + run_pattern[pattern_index];
-      const uint32_t frequency_hz = scale_frequency_hz[scale_index];
-      const uint32_t period_ticks =
-        (BUZZER_TIMER_TICK_HZ + (frequency_hz / 2U)) / frequency_hz;
-      update_buzzer_output(period_ticks, period_ticks / 2U);
+    const startup_song_section_t *section = &sections[section_index];
+    const uint32_t note_duration_ms =
+      (60000U + (3U * section->dotted_quarter_bpm)) /
+      (6U * section->dotted_quarter_bpm);
 
-      HAL_Delay(note_duration_ms[group_index] - BUZZER_NOTE_GAP_MS);
-      update_buzzer_output(period_ticks, 0U);
-      HAL_Delay(BUZZER_NOTE_GAP_MS);
+    for (uint32_t group_index = 0U;
+         group_index < section->group_count;
+         group_index++)
+    {
+      const int32_t group_scale_index =
+        section->first_scale_index +
+        ((int32_t)group_index * section->scale_step);
+
+      for (uint32_t note_index = 0U;
+           note_index < (sizeof(run_pattern[0]) /
+                         sizeof(run_pattern[0][0]));
+           note_index++)
+      {
+        const uint32_t scale_index =
+          (uint32_t)(group_scale_index +
+                     run_pattern[section->pattern_index][note_index]);
+        const uint32_t frequency_hz = scale_frequency_hz[scale_index];
+        const uint32_t period_ticks =
+          (BUZZER_TIMER_TICK_HZ + (frequency_hz / 2U)) / frequency_hz;
+        update_buzzer_output(period_ticks, period_ticks / 2U);
+
+        HAL_Delay(note_duration_ms - BUZZER_NOTE_GAP_MS);
+        update_buzzer_output(period_ticks, 0U);
+        HAL_Delay(BUZZER_NOTE_GAP_MS);
+      }
     }
   }
 
@@ -196,9 +205,10 @@ int main(void)
 
   /* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration----+----------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -224,40 +234,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  play_startup_song();
+  //play_startup_song();
 
-  /* UVLED_CTRL is active-low. PWM1 with low output polarity makes the compare
-     value directly represent LED-on duty: 0% is high/off, 100% is low/on. */
-  TIM_OC_InitTypeDef uvled_pwm = {0};
-  uvled_pwm.OCMode = TIM_OCMODE_PWM1;
-  uvled_pwm.Pulse = 0U;
-  uvled_pwm.OCPolarity = TIM_OCPOLARITY_LOW;
-  uvled_pwm.OCFastMode = TIM_OCFAST_DISABLE;
-
-  __HAL_TIM_DISABLE(&htim2);
-  __HAL_TIM_SET_PRESCALER(&htim2, 0U);
-  __HAL_TIM_SET_AUTORELOAD(&htim2, UVLED_PWM_PERIOD_TICKS - 1U);
-  __HAL_TIM_SET_COUNTER(&htim2, 0U);
-  if (HAL_TIM_PWM_ConfigChannel(&htim2,
-                                &uvled_pwm,
-                                TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_GenerateEvent(&htim2, TIM_EVENTSOURCE_UPDATE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* Temporary hardware checkout: turn the UV LED array fully on at boot. */
-  UVLED_SetDutyPercent(100U);
-
-  payload_app_init(&hi2c1,
-                   &hi2c2,
-                   &hi2c3,
+  payload_app_init(&hi2c3,
                    &hspi2,
                    &hspi1,
                    &huart2,
@@ -658,10 +637,6 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
@@ -795,6 +770,10 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, PUMP_CTRL_Pin|VBAT_TRIGGER_Pin, GPIO_PIN_RESET);
 
+  /* UVLED_CTRL moved to PD1. Set its output latch high before changing
+     the pin to output mode so it is high from the start of GPIO setup. */
+  HAL_GPIO_WritePin(UVLED_CTRL_GPIO_Port, UVLED_CTRL_Pin, GPIO_PIN_SET);
+
   /*Configure GPIO pin : STAT_LEDR_Pin */
   GPIO_InitStruct.Pin = STAT_LEDR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -834,20 +813,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : TEMP_SENSOR_Pin */
-  GPIO_InitStruct.Pin = TEMP_SENSOR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(TEMP_SENSOR_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PUMP_CTRL_Pin VBAT_TRIGGER_Pin */
-  GPIO_InitStruct.Pin = PUMP_CTRL_Pin|VBAT_TRIGGER_Pin;
+  /*Configure GPIO pins : UVLED_CTRL_Pin PUMP_CTRL_Pin VBAT_TRIGGER_Pin */
+  GPIO_InitStruct.Pin = UVLED_CTRL_Pin|PUMP_CTRL_Pin|VBAT_TRIGGER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+  UVLED_SetDutyPercent(100U);
 
   /* USER CODE END MX_GPIO_Init_2 */
 }

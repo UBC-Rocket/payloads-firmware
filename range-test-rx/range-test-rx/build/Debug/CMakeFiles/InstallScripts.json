@@ -1,7 +1,7 @@
 {
 	"InstallScripts" : 
 	[
-		"/Users/yeganeh/Documents/rocket/range-test-rx/build/Debug/cmake_install.cmake"
+		"/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Debug/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

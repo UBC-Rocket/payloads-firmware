@@ -41,6 +41,8 @@
 #define SERIAL_QUEUE_DEPTH   2U
 #define SILENCE_LOG_MS       15000U
 #define PUMP_COMMAND_REPEATS 3U
+#define PING_COMMAND_REPEATS 1U
+#define PING_REPLY_TIMEOUT_MS 12000U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -64,6 +66,8 @@ static volatile uint8_t serial_queue_length[SERIAL_QUEUE_DEPTH];
 static volatile uint8_t serial_queue_head;
 static volatile uint8_t serial_queue_tail;
 static volatile uint8_t serial_queue_count;
+static bool ping_waiting;
+static uint32_t ping_started_ms;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,7 +84,6 @@ static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
 static bool Serial_TakeCommand(char *command, uint16_t command_size);
-static bool Serial_CommandValid(const char *command);
 static int Hex_Nibble(char c);
 /* USER CODE END PFP */
 
@@ -308,51 +311,6 @@ static bool Serial_TakeCommand(char *command, uint16_t command_size)
 }
 
 /**
-  * @brief Accept the fixed pump/LED commands or LED_PWM followed by 0..100.
-  */
-static bool Serial_CommandValid(const char *command)
-{
-  static const char led_pwm_prefix[] = "LED_PWM ";
-  if (strcmp(command, "PUMP_ON") == 0 ||
-      strcmp(command, "PUMP_OFF") == 0 ||
-      strcmp(command, "LED_ON") == 0 ||
-      strcmp(command, "LED_OFF") == 0)
-  {
-    return true;
-  }
-
-  if (strncmp(command,
-              led_pwm_prefix,
-              sizeof(led_pwm_prefix) - 1U) != 0)
-  {
-    return false;
-  }
-
-  const char *digits = command + (sizeof(led_pwm_prefix) - 1U);
-  if (*digits == '\0')
-  {
-    return false;
-  }
-
-  uint16_t percent = 0U;
-  for (size_t index = 0U; digits[index] != '\0'; index++)
-  {
-    if (index >= 3U ||
-        digits[index] < '0' || digits[index] > '9')
-    {
-      return false;
-    }
-    percent = (uint16_t)((percent * 10U) +
-                         (uint16_t)(digits[index] - '0'));
-    if (percent > 100U)
-    {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
   * @brief Assemble CR/LF-terminated WebSerial commands without blocking the
   *        RN2483 receive wait in the main loop.
   */
@@ -564,7 +522,7 @@ int main(void)
      so the loop stays alive and can re-arm even if nothing is heard. */
   RN2483_CommandChecked("radio set wdt 2000");
   Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
-  Debug_Log("bridge serial ready: PUMP_ON/OFF, LED_ON/OFF, LED_PWM 0..100");
+  Debug_Log("bridge serial ready: send PUMP_ON, PUMP_OFF, or PING at 115200");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -585,21 +543,52 @@ int main(void)
       Debug_Log("BRIDGE SERIAL ERROR input dropped");
     }
 
+    if (ping_waiting &&
+        (HAL_GetTick() - ping_started_ms) >= PING_REPLY_TIMEOUT_MS)
+    {
+      const uint32_t elapsed_ms = HAL_GetTick() - ping_started_ms;
+      ping_waiting = false;
+      snprintf(out, sizeof(out), "BRIDGE PING TIMEOUT elapsed_ms=%lu",
+               (unsigned long)elapsed_ms);
+      Debug_Log(out);
+    }
+
     /* A complete VCP line is handled only between LoRa receive windows, when
        the module is idle and can safely switch from RX to TX. */
     if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
     {
-      if (Serial_CommandValid(serial_line))
+      if (strcmp(serial_line, "PUMP_ON") == 0 ||
+          strcmp(serial_line, "PUMP_OFF") == 0 ||
+          strcmp(serial_line, "PING") == 0)
       {
         char detail[32];
         HAL_StatusTypeDef transmit_status = HAL_OK;
         uint8_t transmissions = 0U;
+        const bool is_ping = strcmp(serial_line, "PING") == 0;
+        const uint8_t required_transmissions = is_ping
+                                                   ? PING_COMMAND_REPEATS
+                                                   : PUMP_COMMAND_REPEATS;
+
+        if (is_ping && ping_waiting)
+        {
+          Debug_Log("BRIDGE PING BUSY");
+          continue;
+        }
+
         snprintf(out, sizeof(out), "BRIDGE SERIAL RX len=%u \"%s\"",
                  (unsigned int)strlen(serial_line), serial_line);
         Debug_Log(out);
 
-        /* All accepted commands are idempotent; repeat for extra link margin. */
-        for (uint8_t attempt = 0U; attempt < PUMP_COMMAND_REPEATS; attempt++)
+        if (is_ping)
+        {
+          ping_started_ms = HAL_GetTick();
+        }
+
+        /* Pump commands are idempotent and repeated for link margin. PING is
+           sent once so one request produces exactly one PONG. */
+        for (uint8_t attempt = 0U;
+             attempt < required_transmissions;
+             attempt++)
         {
           transmit_status = RN2483_TransmitText(serial_line,
                                                 detail,
@@ -609,18 +598,23 @@ int main(void)
             break;
           }
           transmissions++;
-          if (attempt + 1U < PUMP_COMMAND_REPEATS)
+          if (attempt + 1U < required_transmissions)
           {
             HAL_Delay(250U);
           }
         }
 
-        if (transmit_status == HAL_OK && transmissions == PUMP_COMMAND_REPEATS)
+        if (transmit_status == HAL_OK &&
+            transmissions == required_transmissions)
         {
           snprintf(out, sizeof(out), "BRIDGE RADIO TX %s OK repeats=%u",
                    serial_line, transmissions);
           Debug_Log(out);
           HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+          if (is_ping)
+          {
+            ping_waiting = true;
+          }
         }
         else
         {
@@ -693,6 +687,7 @@ int main(void)
         hex += 2;
       }
       text[tlen] = '\0';
+      const uint32_t packet_received_ms = HAL_GetTick();
 
       /* Signal quality of this packet - the actual range-test measurement.
          SNR = signal vs noise floor (SF12 decodes down to -20 dB);
@@ -711,6 +706,23 @@ int main(void)
       snprintf(out, sizeof(out), "RX %lu: \"%s\" (snr %s, rssi %s)",
                (unsigned long)rx_count, text, snr, rssi);
       Debug_Log(out);
+      if (strcmp(text, "PONG") == 0)
+      {
+        if (ping_waiting)
+        {
+          ping_waiting = false;
+          snprintf(out, sizeof(out),
+                   "BRIDGE PING OK rtt_ms=%lu snr=%s rssi=%s",
+                   (unsigned long)(packet_received_ms - ping_started_ms),
+                   snr,
+                   rssi);
+          Debug_Log(out);
+        }
+        else
+        {
+          Debug_Log("BRIDGE PING UNEXPECTED PONG");
+        }
+      }
       HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
     }
     else if (strcmp(line, "radio_err") == 0)
@@ -724,7 +736,7 @@ int main(void)
     }
     else
     {
-      snprintf(out, sizeof(out), "unexpected from module: %s", line);
+      snprintf(out, sizeof(out), "unexpected from module: %.135s", line);
       Debug_Log(out);
     }
     /* USER CODE END WHILE */

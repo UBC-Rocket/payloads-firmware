@@ -99,6 +99,7 @@ typedef struct {
 typedef struct {
     uint32_t raw;
     float uvi;
+    bool uvi_valid;
 } ltr390_uvs_sample_t;
 
 typedef struct {
@@ -111,7 +112,7 @@ typedef struct {
 ltr390_status_t ltr390_bind(ltr390_t *device,
                             const ltr390_transport_t *transport);
 
-/** Identify, reset, configure, activate, and verify the sensor. */
+/** Identify, place in standby, configure, activate, and verify the sensor. */
 ltr390_status_t ltr390_init(ltr390_t *device,
                             const ltr390_config_t *config);
 
@@ -124,15 +125,21 @@ ltr390_status_t ltr390_data_ready(ltr390_t *device, bool *ready);
 /** Read the active channel as one coherent 20-bit raw value. */
 ltr390_status_t ltr390_read_raw(ltr390_t *device, uint32_t *raw);
 
-/** Read ALS data and convert it to lux using the supplied window factor. */
+/**
+ * Read ALS data and convert it to lux using the supplied window factor.
+ * Lux conversion is unavailable at 13-bit resolution because the datasheet
+ * does not define an integration factor for that setting; raw reads remain
+ * available through ltr390_read_raw().
+ */
 ltr390_status_t ltr390_read_als(ltr390_t *device,
                                 float window_factor,
                                 ltr390_als_sample_t *sample);
 
 /**
  * Read UVS data and convert it to UV index using the supplied window factor.
- * The datasheet's 2300-count/UVI point (18x, 20-bit) is scaled linearly for
- * other supported gain and integration-time settings.
+ * The datasheet specifies 2300 counts/UVI only at 18x gain and 20-bit
+ * resolution, so conversion returns LTR390_ERROR_CONFIGURATION at every
+ * other setting. Raw reads remain available through ltr390_read_raw().
  */
 ltr390_status_t ltr390_read_uvs(ltr390_t *device,
                                 float window_factor,

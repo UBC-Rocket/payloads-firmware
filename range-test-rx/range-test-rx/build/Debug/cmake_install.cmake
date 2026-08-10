@@ -1,4 +1,4 @@
-# Install script for directory: /Users/yeganeh/Documents/rocket/range-test-rx
+# Install script for directory: /home/alex/Code/payloads/range-test-rx/range-test-rx
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -34,13 +34,13 @@ endif()
 
 # Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "/opt/homebrew/bin/arm-none-eabi-objdump")
+  set(CMAKE_OBJDUMP "/home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-objdump")
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/Users/yeganeh/Documents/rocket/range-test-rx/build/Debug/install_local_manifest.txt"
+  file(WRITE "/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Debug/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
 if(CMAKE_INSTALL_COMPONENT)
@@ -56,6 +56,6 @@ else()
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/Users/yeganeh/Documents/rocket/range-test-rx/build/Debug/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

@@ -17,6 +17,7 @@
     --series-snr:     #2a78d6;  /* categorical slot 1: SNR */
     --series-delay:   #1baf7a;  /* categorical slot 2: delay */
     --series-rssi:    #eda100;  /* categorical slot 3: RSSI */
+    --series-pong:    #8b5cf6;  /* categorical slot 4: PONG */
     --bad:            #d03b3b;  /* status: critical (dropouts) */
   }
   @media (prefers-color-scheme: dark) {
@@ -32,6 +33,7 @@
       --series-snr:     #3987e5;
       --series-delay:   #199e70;
       --series-rssi:    #c98500;
+      --series-pong:    #a78bfa;
       --bad:            #d03b3b;
     }
   }
@@ -52,13 +54,6 @@
   button.primary { background: var(--series-snr); border-color: transparent; color: #fff; }
   button.danger { background: var(--bad); border-color: transparent; color: #fff; }
   button:disabled { opacity: 0.45; cursor: default; }
-  .command-input { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); }
-  .command-input input {
-    width: 64px; padding: 6px 7px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
-    font: inherit;
-  }
-  .command-input input:disabled { opacity: 0.45; }
   .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 6px; }
   .status-dot.live { background: #0ca30c; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
@@ -101,15 +96,9 @@
   <div class="spacer"></div>
   <span><span class="status-dot" id="dot"></span><span id="connState">disconnected</span></span>
   <button class="primary" id="btnConnect">Connect serial</button>
+  <button id="btnPing" disabled>Ping payload</button>
   <button class="danger" id="btnPumpOn" disabled>Send PUMP_ON</button>
   <button id="btnPumpOff" disabled>Send PUMP_OFF</button>
-  <button id="btnLedOn" disabled>LED on</button>
-  <button id="btnLedOff" disabled>LED off</button>
-  <label class="command-input">LED PWM
-    <input id="ledPwmPercent" type="number" min="0" max="100" step="1" value="10" disabled>
-    %
-  </label>
-  <button id="btnLedPwm" disabled>Set PWM</button>
   <button id="btnDemo">Demo data</button>
   <button id="btnCsv" disabled>Export CSV</button>
   <button id="btnClear">Clear</button>
@@ -125,21 +114,25 @@
   <div class="tile"><div class="label">Last gap</div><div class="value" id="tDelay">–<small> s</small></div></div>
   <div class="tile"><div class="label">Payload radio</div><div class="value" id="tRadio">–</div></div>
   <div class="tile"><div class="label">Payload pump</div><div class="value" id="tPump">–</div></div>
-  <div class="tile"><div class="label">Payload LED duty</div><div class="value" id="tLed">–<small> %</small></div></div>
+  <div class="tile"><div class="label">Last ping</div><div class="value" id="tPing">–</div></div>
 </div>
 
 <div class="charts">
   <div class="panel">
-    <h2><span class="chip" style="background:var(--series-snr)"></span>SNR over time (dB)</h2>
+    <h2><span class="chip" style="background:var(--series-snr)"></span>SNR over time (dB) <span class="hint">purple markers: PONG</span></h2>
     <canvas id="snrChart"></canvas>
   </div>
   <div class="panel">
-    <h2><span class="chip" style="background:var(--series-rssi)"></span>RSSI over time (dBm)</h2>
+    <h2><span class="chip" style="background:var(--series-rssi)"></span>RSSI over time (dBm) <span class="hint">purple markers: PONG</span></h2>
     <canvas id="rssiChart"></canvas>
   </div>
   <div class="panel">
     <h2><span class="chip" style="background:var(--series-delay)"></span>Gap between messages (s)</h2>
     <canvas id="delayChart"></canvas>
+  </div>
+  <div class="panel">
+    <h2><span class="chip" style="background:var(--series-pong)"></span>PONG round-trip time (ms)</h2>
+    <canvas id="rttChart"></canvas>
   </div>
 </div>
 
@@ -154,10 +147,11 @@
 "use strict";
 
 /* ---------- data model ---------- */
-const points = [];        // {t:Date, snr:number, delay:number|null, ping:number, raw:string}
+const points = [];        // {t, kind, ping, snr, rssi, delay, rttMs, raw}
 let missed = 0;
 let lastPing = null;
 let lastRxTime = null;
+let pongCount = 0;
 let demoTimer = null;
 
 /* ---------- ui refs ---------- */
@@ -186,7 +180,7 @@ function handleLine(raw) {
   raw = raw.replace(/\r/g, "").trim();
   if (!raw) return;
 
-  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)(?: led=(\d+))?/);
+  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)/);
   if (radioStatus) {
     const phaseNames = [
       "config", "arm RX", "listening", "backoff", "send TX", "wait TX"
@@ -194,9 +188,6 @@ function handleLine(raw) {
     const phase = parseInt(radioStatus[2], 10);
     $("tRadio").textContent = phaseNames[phase] || ("phase " + phase);
     $("tPump").textContent = radioStatus[3] === "1" ? "ON" : "OFF";
-    if (radioStatus[4] !== undefined) {
-      $("tLed").innerHTML = radioStatus[4] + "<small> %</small>";
-    }
     addLog(raw, radioStatus[1] === "1" ? "rx" : "");
     return;
   }
@@ -208,21 +199,61 @@ function handleLine(raw) {
     return;
   }
 
-  const ledEvent = raw.match(/^EVENT (LED_(?:ON|OFF)|LED_PWM \d+) applied led=(\d+)/);
-  if (ledEvent) {
-    $("tLed").innerHTML = ledEvent[2] + "<small> %</small>";
+  const pingResult = raw.match(
+    /^BRIDGE PING OK rtt_ms=(\d+) snr=(-?\d+|\?) rssi=(-?\d+|\?)(?:\s|$)/
+  );
+  if (pingResult) {
+    const rttMs = parseInt(pingResult[1], 10);
+    const snr = pingResult[2] === "?" ? null : parseInt(pingResult[2], 10);
+    const rssi = pingResult[3] === "?" ? null : parseInt(pingResult[3], 10);
+    const now = new Date();
+    pongCount++;
+    points.push({
+      t: now,
+      kind: "pong",
+      ping: pongCount,
+      snr,
+      rssi,
+      delay: null,
+      rttMs,
+      raw
+    });
+    lastRxTime = now;
+    $("tPing").innerHTML = rttMs + "<small> ms</small>";
+    finishPendingCommand("PING");
     addLog(raw, "rx");
+    refresh();
     return;
   }
 
-  const bridgeResult = raw.match(/^BRIDGE RADIO TX (.+) (OK|FAILED)(?:\s|$)/);
+  if (raw.startsWith("BRIDGE PING TIMEOUT")) {
+    $("tPing").textContent = "timeout";
+    finishPendingCommand("PING");
+    addLog(raw, "drop");
+    return;
+  }
+
+  if (raw.startsWith("BRIDGE PING BUSY")) {
+    $("tPing").textContent = "busy";
+    finishPendingCommand("PING");
+    addLog(raw, "drop");
+    return;
+  }
+
+  const bridgeResult = raw.match(/^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|PING) (OK|FAILED)(?:\s|$)/);
   if (bridgeResult) {
-    finishPendingCommand(bridgeResult[1]);
+    if (bridgeResult[1] === "PING" && bridgeResult[2] === "OK") {
+      $("tPing").textContent = "waiting";
+    } else {
+      if (bridgeResult[1] === "PING") $("tPing").textContent = "failed";
+      finishPendingCommand(bridgeResult[1]);
+    }
     addLog(raw, bridgeResult[2] === "OK" ? "rx" : "drop");
     return;
   }
 
   if (raw.startsWith("BRIDGE SERIAL ERROR")) {
+    if (pendingCommand === "PING") $("tPing").textContent = "error";
     finishPendingCommand();
     addLog(raw, "drop");
     return;
@@ -238,7 +269,16 @@ function handleLine(raw) {
     if (lastPing !== null && ping > lastPing + 1) missed += ping - lastPing - 1;
     lastPing = ping;
     lastRxTime = now;
-    points.push({ t: now, snr, rssi, delay, ping, raw });
+    points.push({
+      t: now,
+      kind: "ping",
+      ping,
+      snr,
+      rssi,
+      delay,
+      rttMs: null,
+      raw
+    });
     addLog(raw, "rx");
     refresh();
     return;
@@ -253,16 +293,24 @@ function handleLine(raw) {
 function refresh() {
   $("tRx").textContent = points.length;
   $("tMiss").textContent = missed;
-  const total = points.length + missed;
+  const sequencedReceived = points.filter(p => p.kind === "ping").length;
+  const total = sequencedReceived + missed;
   $("tLoss").innerHTML = (total ? (100 * missed / total).toFixed(1) : "0") + "<small> %</small>";
-  if (points.length) {
-    const last = points[points.length - 1];
+  const snrPoints = points.filter(p => Number.isFinite(p.snr));
+  if (snrPoints.length) {
+    const last = snrPoints[snrPoints.length - 1];
     $("tSnr").innerHTML = last.snr + "<small> dB</small>";
-    const tail = points.slice(-10);
+    const tail = snrPoints.slice(-10);
     const avg = tail.reduce((s, p) => s + p.snr, 0) / tail.length;
     $("tSnrAvg").innerHTML = avg.toFixed(1) + "<small> dB</small>";
-    $("tRssi").innerHTML = (last.rssi === null ? "–" : last.rssi) + "<small> dBm</small>";
-    $("tDelay").innerHTML = (last.delay === null ? "–" : last.delay.toFixed(1)) + "<small> s</small>";
+  }
+  const rssiPoints = points.filter(p => Number.isFinite(p.rssi));
+  if (rssiPoints.length) {
+    $("tRssi").innerHTML = rssiPoints[rssiPoints.length - 1].rssi + "<small> dBm</small>";
+  }
+  const delayPoints = points.filter(p => Number.isFinite(p.delay));
+  if (delayPoints.length) {
+    $("tDelay").innerHTML = delayPoints[delayPoints.length - 1].delay.toFixed(1) + "<small> s</small>";
   }
   $("btnCsv").disabled = points.length === 0;
   drawAll();
@@ -364,10 +412,18 @@ function drawChart(canvas, getY, color, opts) {
   });
   ctx.stroke();
 
+  /* PONG markers are distinct on the shared SNR/RSSI charts. */
+  ctx.fillStyle = css("--series-pong");
+  for (const p of data) {
+    if (p.kind !== "pong") continue;
+    const x = X(p.t.getTime()), y = Y(getY(p));
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  }
+
   /* last-point marker + direct label (selective, not every point) */
   const lp = data[data.length - 1];
   const lx = X(lp.t.getTime()), ly = Y(getY(lp));
-  ctx.fillStyle = color;
+  ctx.fillStyle = lp.kind === "pong" ? css("--series-pong") : color;
   ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = css("--surface-1"); ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = css("--text-primary");
@@ -377,7 +433,7 @@ function drawChart(canvas, getY, color, opts) {
   return { data, X, Y, getY };
 }
 
-let snrView = null, delayView = null, rssiView = null;
+let snrView = null, delayView = null, rssiView = null, rttView = null;
 function drawAll() {
   snrView = drawChart($("snrChart"), p => p.snr, css("--series-snr"),
     { refLine: -20, refLabel: "SF12 limit − 20 dB", fmt: v => Math.round(v) });
@@ -386,6 +442,8 @@ function drawAll() {
       emptyMsg: "no RSSI — module firmware < 1.0.5 (SNR chart still works)" });
   delayView = drawChart($("delayChart"), p => p.delay, css("--series-delay"),
     { includeZero: true, fmt: v => (Math.round(v * 10) / 10) + "" });
+  rttView = drawChart($("rttChart"), p => p.rttMs, css("--series-pong"),
+    { includeZero: true, fmt: v => Math.round(v) });
 }
 
 /* ---------- hover tooltips ---------- */
@@ -402,8 +460,9 @@ function attachHover(canvas, getView, unit) {
     }
     if (!best || bestDist > 40) { tooltip.style.display = "none"; return; }
     const v = view.getY(best);
+    const packetLabel = best.kind === "pong" ? "PONG #" : "PING ";
     tooltip.innerHTML = "<b>" + (Math.round(v * 10) / 10) + " " + unit + "</b><br>" +
-      "PING " + best.ping + " · " + fmtTime(best.t);
+      packetLabel + best.ping + " · " + fmtTime(best.t);
     tooltip.style.display = "block";
     tooltip.style.left = (e.clientX + 14) + "px";
     tooltip.style.top = (e.clientY + 14) + "px";
@@ -413,6 +472,7 @@ function attachHover(canvas, getView, unit) {
 attachHover($("snrChart"), () => snrView, "dB");
 attachHover($("rssiChart"), () => rssiView, "dBm");
 attachHover($("delayChart"), () => delayView, "s");
+attachHover($("rttChart"), () => rttView, "ms");
 
 /* ---------- web serial ---------- */
 let port = null, reader = null;
@@ -434,22 +494,7 @@ function updateCommandButtons() {
   const enabled = serialConnected && port && port.writable && !commandPending;
   $("btnPumpOn").disabled = !enabled;
   $("btnPumpOff").disabled = !enabled;
-  $("btnLedOn").disabled = !enabled;
-  $("btnLedOff").disabled = !enabled;
-  $("btnLedPwm").disabled = !enabled;
-  $("ledPwmPercent").disabled = !enabled;
-}
-
-function sendLedPwm() {
-  const input = $("ledPwmPercent");
-  const percent = Number(input.value);
-  if (input.value.trim() === "" || !input.checkValidity() ||
-      !Number.isInteger(percent) || percent < 0 || percent > 100) {
-    addLog("LED PWM must be a whole percentage from 0 through 100", "drop");
-    input.focus();
-    return;
-  }
-  sendSerialCommand("LED_PWM " + percent);
+  $("btnPing").disabled = !enabled;
 }
 
 async function sendSerialCommand(command) {
@@ -465,10 +510,12 @@ async function sendSerialCommand(command) {
     addLog("SERIAL TX: " + command + " (waiting for bridge radio result)", "tx");
     commandTimer = setTimeout(() => {
       if (pendingCommand !== command) return;
+      if (command === "PING") $("tPing").textContent = "timeout";
       addLog("bridge response timed out for " + command, "drop");
       finishPendingCommand(command);
     }, 15000);
   } catch (err) {
+    if (command === "PING") $("tPing").textContent = "error";
     addLog("serial TX: " + err.message, "drop");
     finishPendingCommand(command);
   } finally {
@@ -540,14 +587,12 @@ function disconnectUi() {
 }
 
 $("btnConnect").addEventListener("click", () => (port ? disconnect() : connect()));
+$("btnPing").addEventListener("click", () => {
+  $("tPing").textContent = "sending";
+  sendSerialCommand("PING");
+});
 $("btnPumpOn").addEventListener("click", () => sendSerialCommand("PUMP_ON"));
 $("btnPumpOff").addEventListener("click", () => sendSerialCommand("PUMP_OFF"));
-$("btnLedOn").addEventListener("click", () => sendSerialCommand("LED_ON"));
-$("btnLedOff").addEventListener("click", () => sendSerialCommand("LED_OFF"));
-$("btnLedPwm").addEventListener("click", sendLedPwm);
-$("ledPwmPercent").addEventListener("keydown", event => {
-  if (event.key === "Enter") sendLedPwm();
-});
 
 /* ---------- demo mode (no hardware needed) ---------- */
 function stopDemo() {
@@ -564,16 +609,23 @@ $("btnDemo").addEventListener("click", () => {
     if (snr < -20) { handleLine("(nothing heard in this window, still listening)"); return; }
     const rssi = Math.round(-117 + snr + (Math.random() - 0.5) * 4);
     handleLine('RX 0: "PING ' + ping + '" (snr ' + Math.round(snr) + ', rssi ' + rssi + ')');
+    if (Math.random() < 0.35) {
+      const rttMs = Math.round(1200 + Math.random() * 900);
+      handleLine("BRIDGE PING OK rtt_ms=" + rttMs +
+                 " snr=" + Math.round(snr) + " rssi=" + rssi);
+    }
   }, 700);
 });
 
 /* ---------- csv export ---------- */
 $("btnCsv").addEventListener("click", () => {
-  let csv = "time,ping,snr_db,rssi_dbm,gap_s\n";
+  let csv = "time,kind,sequence,snr_db,rssi_dbm,gap_s,rtt_ms\n";
   for (const p of points) {
-    csv += p.t.toISOString() + "," + p.ping + "," + p.snr + "," +
+    csv += p.t.toISOString() + "," + p.kind + "," + p.ping + "," +
+           (p.snr === null ? "" : p.snr) + "," +
            (p.rssi === null ? "" : p.rssi) + "," +
-           (p.delay === null ? "" : p.delay.toFixed(2)) + "\n";
+           (p.delay === null ? "" : p.delay.toFixed(2)) + "," +
+           (p.rttMs === null ? "" : p.rttMs) + "\n";
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -588,6 +640,7 @@ $("btnClear").addEventListener("click", () => {
   missed = 0;
   lastPing = null;
   lastRxTime = null;
+  pongCount = 0;
   logEl.innerHTML = "";
   $("tSnr").innerHTML = "–<small> dB</small>";
   $("tSnrAvg").innerHTML = "–<small> dB</small>";
@@ -595,7 +648,7 @@ $("btnClear").addEventListener("click", () => {
   $("tDelay").innerHTML = "–<small> s</small>";
   $("tRadio").textContent = "–";
   $("tPump").textContent = "–";
-  $("tLed").innerHTML = "–<small> %</small>";
+  $("tPing").textContent = "–";
   refresh();
 });
 

@@ -20,6 +20,9 @@ typedef struct {
     uint8_t registers[0x27];
     bool fail_reads;
     bool fail_writes;
+    uint8_t written_registers[8];
+    uint8_t written_values[8];
+    size_t write_count;
     uint32_t delay_total_ms;
 } fake_bus_t;
 
@@ -48,6 +51,9 @@ static bool fake_read(void *context,
         return false;
     }
     memcpy(data, &bus->registers[first_register], length);
+    if (first_register == REG_MAIN_STATUS && length == 1U) {
+        bus->registers[REG_MAIN_STATUS] &= (uint8_t)~0x38U;
+    }
     return true;
 }
 
@@ -59,11 +65,12 @@ static bool fake_write(void *context,
     if (bus->fail_writes || register_address >= 0x27U) {
         return false;
     }
-    if (register_address == REG_MAIN_CTRL && (value & 0x10U) != 0U) {
-        reset_registers(bus->registers);
-    } else {
-        bus->registers[register_address] = value;
+    if (bus->write_count < sizeof(bus->written_registers)) {
+        bus->written_registers[bus->write_count] = register_address;
+        bus->written_values[bus->write_count] = value;
     }
+    bus->write_count++;
+    bus->registers[register_address] = value;
     return true;
 }
 
@@ -103,12 +110,24 @@ static void test_uvs_initialization_and_read(void)
     assert(bus.registers[REG_MAIN_CTRL] == 0x0AU);
     assert(bus.registers[REG_MEAS_RATE] == 0x04U);
     assert(bus.registers[REG_GAIN] == 0x04U);
-    assert(bus.delay_total_ms == 20U);
+    assert(bus.registers[REG_MAIN_STATUS] == 0x00U);
+    assert(bus.delay_total_ms == 10U);
+    assert(bus.write_count == 4U);
+    assert(bus.written_registers[0] == REG_MAIN_CTRL);
+    assert(bus.written_values[0] == 0x00U);
+    assert(bus.written_registers[1] == REG_MEAS_RATE);
+    assert(bus.written_values[1] == 0x04U);
+    assert(bus.written_registers[2] == REG_GAIN);
+    assert(bus.written_values[2] == 0x04U);
+    assert(bus.written_registers[3] == REG_MAIN_CTRL);
+    assert(bus.written_values[3] == 0x0AU);
 
     bus.registers[REG_MAIN_STATUS] = 0x08U;
     bool ready = false;
     assert(ltr390_data_ready(&device, &ready) == LTR390_OK);
     assert(ready);
+    assert(ltr390_data_ready(&device, &ready) == LTR390_OK);
+    assert(!ready);
 
     bus.registers[REG_UVS_DATA] = 0xF8U;
     bus.registers[REG_UVS_DATA + 1U] = 0x59U;
@@ -118,6 +137,7 @@ static void test_uvs_initialization_and_read(void)
     assert(ltr390_read_uvs(&device, 1.0f, &sample) == LTR390_OK);
     assert(sample.raw == 23032U);
     assert(nearly_equal(sample.uvi, 10.0139f, 0.001f));
+    assert(sample.uvi_valid);
     assert(ltr390_read_als(&device, 1.0f, NULL) == LTR390_ERROR_ARGUMENT);
 }
 
@@ -145,6 +165,35 @@ static void test_als_mode_and_conversion(void)
     ltr390_uvs_sample_t uvs_sample;
     assert(ltr390_read_uvs(&device, 1.0f, &uvs_sample) ==
            LTR390_ERROR_MODE);
+}
+
+static void test_only_documented_conversions(void)
+{
+    fake_bus_t bus;
+    reset_fake_bus(&bus);
+    const ltr390_transport_t transport = fake_transport(&bus);
+    ltr390_t device;
+
+    assert(ltr390_bind(&device, &transport) == LTR390_OK);
+
+    ltr390_config_t uvs_config = ltr390_default_uvs_config;
+    uvs_config.gain = LTR390_GAIN_9X;
+    assert(ltr390_init(&device, &uvs_config) == LTR390_OK);
+    ltr390_uvs_sample_t uvs_sample;
+    assert(ltr390_read_uvs(&device, 1.0f, &uvs_sample) ==
+           LTR390_ERROR_CONFIGURATION);
+    uint32_t raw = 1U;
+    assert(ltr390_read_raw(&device, &raw) == LTR390_OK);
+    assert(raw == 0U);
+
+    ltr390_config_t als_config = ltr390_default_als_config;
+    als_config.resolution = LTR390_RESOLUTION_13_BIT;
+    als_config.measurement_rate = LTR390_RATE_25_MS;
+    assert(ltr390_init(&device, &als_config) == LTR390_OK);
+    ltr390_als_sample_t als_sample;
+    assert(ltr390_read_als(&device, 1.0f, &als_sample) ==
+           LTR390_ERROR_CONFIGURATION);
+    assert(ltr390_read_raw(&device, &raw) == LTR390_OK);
 }
 
 static void test_errors(void)
@@ -246,7 +295,7 @@ static void test_stm32_adapter(void)
     assert(hal_last_device_address == (uint16_t)(LTR390_I2C_ADDRESS << 1U));
     assert(hal_last_memory_address_size == I2C_MEMADD_SIZE_8BIT);
     assert(hal_last_timeout == 25U);
-    assert(hal_delay_total == 20U);
+    assert(hal_delay_total == 10U);
 
     i2c.Init.AddressingMode = I2C_ADDRESSINGMODE_10BIT;
     assert(ltr390_stm32_bind(&device, &bus, &i2c, 25U) ==
@@ -257,6 +306,7 @@ int main(void)
 {
     test_uvs_initialization_and_read();
     test_als_mode_and_conversion();
+    test_only_documented_conversions();
     test_errors();
     test_stm32_adapter();
     puts("LTR390 tests passed");

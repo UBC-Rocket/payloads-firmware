@@ -11,13 +11,12 @@
 #define LTR390_REG_ALS_DATA 0x0DU
 #define LTR390_REG_UVS_DATA 0x10U
 
-#define LTR390_MAIN_CTRL_RESET 0x10U
+#define LTR390_MAIN_CTRL_STANDBY 0x00U
 #define LTR390_MAIN_CTRL_ENABLE 0x02U
 #define LTR390_MAIN_CTRL_WRITABLE_MASK 0x1AU
 #define LTR390_STATUS_DATA_READY 0x08U
 #define LTR390_MEAS_RATE_MASK 0x77U
 #define LTR390_GAIN_MASK 0x07U
-#define LTR390_RESET_DELAY_MS 10U
 #define LTR390_WAKE_DELAY_MS 10U
 #define LTR390_UVS_SENSITIVITY_COUNTS_PER_UVI 2300.0f
 
@@ -159,7 +158,8 @@ static float integration_factor(ltr390_resolution_t resolution)
     case LTR390_RESOLUTION_16_BIT:
         return 0.25f;
     case LTR390_RESOLUTION_13_BIT:
-        return 0.125f;
+        /* The datasheet's lux formula does not define a 13-bit factor. */
+        return 0.0f;
     default:
         return 0.0f;
     }
@@ -196,16 +196,22 @@ ltr390_status_t ltr390_init(ltr390_t *device,
         return status;
     }
 
+    /* Software-reset completion timing is not specified. Standby plus
+       explicit writes establishes every register state used by this driver. */
     status = write_register(device,
                             LTR390_REG_MAIN_CTRL,
-                            LTR390_MAIN_CTRL_RESET);
+                            LTR390_MAIN_CTRL_STANDBY);
     if (status != LTR390_OK) {
         return status;
     }
-    device->transport.delay_ms(device->transport.context,
-                               LTR390_RESET_DELAY_MS);
 
-    status = verify_part_id(device);
+    /* MAIN_STATUS bits 5, 4, and 3 are read-to-clear. Clear any event or
+       unread sample left by an earlier application before starting UVS/ALS. */
+    uint8_t ignored_status = 0U;
+    status = read_registers(device,
+                            LTR390_REG_MAIN_STATUS,
+                            &ignored_status,
+                            1U);
     if (status != LTR390_OK) {
         return status;
     }
@@ -360,13 +366,17 @@ ltr390_status_t ltr390_read_als(ltr390_t *device,
         return LTR390_ERROR_MODE;
     }
 
+    const float divisor = gain_factor(device->config.gain) *
+                          integration_factor(device->config.resolution);
+    if (!(divisor > 0.0f)) {
+        return LTR390_ERROR_CONFIGURATION;
+    }
+
     const ltr390_status_t status = ltr390_read_raw(device, &sample->raw);
     if (status != LTR390_OK) {
         return status;
     }
 
-    const float divisor = gain_factor(device->config.gain) *
-                          integration_factor(device->config.resolution);
     sample->lux = (0.6f * (float)sample->raw * window_factor) / divisor;
     return LTR390_OK;
 }
@@ -384,15 +394,18 @@ ltr390_status_t ltr390_read_uvs(ltr390_t *device,
     if (device->config.mode != LTR390_MODE_UVS) {
         return LTR390_ERROR_MODE;
     }
+    if (device->config.gain != LTR390_GAIN_18X ||
+        device->config.resolution != LTR390_RESOLUTION_20_BIT) {
+        return LTR390_ERROR_CONFIGURATION;
+    }
 
     const ltr390_status_t status = ltr390_read_raw(device, &sample->raw);
     if (status != LTR390_OK) {
         return status;
     }
 
-    const float sensitivity = LTR390_UVS_SENSITIVITY_COUNTS_PER_UVI *
-        (gain_factor(device->config.gain) / 18.0f) *
-        (integration_factor(device->config.resolution) / 4.0f);
-    sample->uvi = ((float)sample->raw * window_factor) / sensitivity;
+    sample->uvi = ((float)sample->raw * window_factor) /
+                  LTR390_UVS_SENSITIVITY_COUNTS_PER_UVI;
+    sample->uvi_valid = true;
     return LTR390_OK;
 }

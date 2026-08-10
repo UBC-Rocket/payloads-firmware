@@ -110,6 +110,14 @@ static void test_format(void)
     CHECK(length == strlen(line));
     CHECK(strcmp(line, "1234,-1,2,3,4,1,1,1,0,1,7,0\r\n") == 0);
 
+    const payload_log_record_t wide_time =
+        make_record(UINT64_C(18446744073709551615));
+    const size_t wide_length =
+        payload_log_format_record(line, sizeof(line), &wide_time);
+    CHECK(wide_length == strlen(line));
+    CHECK(strcmp(line,
+                 "18446744073709551615,-1,2,3,4,1,1,1,0,1,7,0\r\n") == 0);
+
     char too_small[8];
     CHECK(payload_log_format_record(too_small,
                                     sizeof(too_small),
