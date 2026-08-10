@@ -97,8 +97,8 @@
   <span><span class="status-dot" id="dot"></span><span id="connState">disconnected</span></span>
   <button class="primary" id="btnConnect">Connect serial</button>
   <button id="btnPing" disabled>Ping payload</button>
-  <button class="danger" id="btnPumpOn" disabled>Send PUMP_ON</button>
-  <button id="btnPumpOff" disabled>Send PUMP_OFF</button>
+  <button id="btnPump" disabled>Turn pump on</button>
+  <button id="btnLed" disabled>Turn LED on</button>
   <button id="btnDemo">Demo data</button>
   <button id="btnCsv" disabled>Export CSV</button>
   <button id="btnClear">Clear</button>
@@ -114,6 +114,7 @@
   <div class="tile"><div class="label">Last gap</div><div class="value" id="tDelay">–<small> s</small></div></div>
   <div class="tile"><div class="label">Payload radio</div><div class="value" id="tRadio">–</div></div>
   <div class="tile"><div class="label">Payload pump</div><div class="value" id="tPump">–</div></div>
+  <div class="tile"><div class="label">Payload LED</div><div class="value" id="tLed">–</div></div>
   <div class="tile"><div class="label">Last ping</div><div class="value" id="tPing">–</div></div>
 </div>
 
@@ -180,21 +181,34 @@ function handleLine(raw) {
   raw = raw.replace(/\r/g, "").trim();
   if (!raw) return;
 
-  const radioStatus = raw.match(/^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+)/);
+  const radioStatus = raw.match(
+    /^RADIO ready=(\d+) phase=(\d+) .*pump=(\d+) led=(\d+)/
+  );
   if (radioStatus) {
     const phaseNames = [
       "config", "arm RX", "listening", "backoff", "send TX", "wait TX"
     ];
     const phase = parseInt(radioStatus[2], 10);
     $("tRadio").textContent = phaseNames[phase] || ("phase " + phase);
-    $("tPump").textContent = radioStatus[3] === "1" ? "ON" : "OFF";
+    pumpCommandedOn = radioStatus[3] === "1";
+    ledCommandedOn = parseInt(radioStatus[4], 10) > 0;
+    updateOutputControls();
     addLog(raw, radioStatus[1] === "1" ? "rx" : "");
     return;
   }
 
   const pumpEvent = raw.match(/^EVENT PUMP_(ON|OFF) applied pump=([01])/);
   if (pumpEvent) {
-    $("tPump").textContent = pumpEvent[2] === "1" ? "ON" : "OFF";
+    pumpCommandedOn = pumpEvent[2] === "1";
+    updateOutputControls();
+    addLog(raw, "rx");
+    return;
+  }
+
+  const ledEvent = raw.match(/^EVENT LED_(ON|OFF) applied led=(\d+)/);
+  if (ledEvent) {
+    ledCommandedOn = parseInt(ledEvent[2], 10) > 0;
+    updateOutputControls();
     addLog(raw, "rx");
     return;
   }
@@ -240,12 +254,24 @@ function handleLine(raw) {
     return;
   }
 
-  const bridgeResult = raw.match(/^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|PING) (OK|FAILED)(?:\s|$)/);
+  const bridgeResult = raw.match(
+    /^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|LED_(?:ON|OFF)|PING) (OK|FAILED)(?:\s|$)/
+  );
   if (bridgeResult) {
     if (bridgeResult[1] === "PING" && bridgeResult[2] === "OK") {
       $("tPing").textContent = "waiting";
     } else {
       if (bridgeResult[1] === "PING") $("tPing").textContent = "failed";
+      if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_ON") {
+        pumpCommandedOn = true;
+      } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_OFF") {
+        pumpCommandedOn = false;
+      } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_ON") {
+        ledCommandedOn = true;
+      } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_OFF") {
+        ledCommandedOn = false;
+      }
+      updateOutputControls();
       finishPendingCommand(bridgeResult[1]);
     }
     addLog(raw, bridgeResult[2] === "OK" ? "rx" : "drop");
@@ -480,6 +506,19 @@ let serialConnected = false;
 let commandPending = false;
 let pendingCommand = null;
 let commandTimer = null;
+let pumpCommandedOn = null;
+let ledCommandedOn = null;
+
+function updateOutputControls() {
+  $("btnPump").textContent = pumpCommandedOn === true ? "Turn pump off" : "Turn pump on";
+  $("btnLed").textContent = ledCommandedOn === true ? "Turn LED off" : "Turn LED on";
+  $("tPump").textContent = pumpCommandedOn === null
+    ? "–"
+    : (pumpCommandedOn ? "ON" : "OFF");
+  $("tLed").textContent = ledCommandedOn === null
+    ? "–"
+    : (ledCommandedOn ? "ON" : "OFF");
+}
 
 function finishPendingCommand(command) {
   if (command && pendingCommand && command !== pendingCommand) return;
@@ -492,8 +531,8 @@ function finishPendingCommand(command) {
 
 function updateCommandButtons() {
   const enabled = serialConnected && port && port.writable && !commandPending;
-  $("btnPumpOn").disabled = !enabled;
-  $("btnPumpOff").disabled = !enabled;
+  $("btnPump").disabled = !enabled;
+  $("btnLed").disabled = !enabled;
   $("btnPing").disabled = !enabled;
 }
 
@@ -591,8 +630,12 @@ $("btnPing").addEventListener("click", () => {
   $("tPing").textContent = "sending";
   sendSerialCommand("PING");
 });
-$("btnPumpOn").addEventListener("click", () => sendSerialCommand("PUMP_ON"));
-$("btnPumpOff").addEventListener("click", () => sendSerialCommand("PUMP_OFF"));
+$("btnPump").addEventListener("click", () =>
+  sendSerialCommand(pumpCommandedOn === true ? "PUMP_OFF" : "PUMP_ON")
+);
+$("btnLed").addEventListener("click", () =>
+  sendSerialCommand(ledCommandedOn === true ? "LED_OFF" : "LED_ON")
+);
 
 /* ---------- demo mode (no hardware needed) ---------- */
 function stopDemo() {
@@ -647,7 +690,7 @@ $("btnClear").addEventListener("click", () => {
   $("tRssi").innerHTML = "–<small> dBm</small>";
   $("tDelay").innerHTML = "–<small> s</small>";
   $("tRadio").textContent = "–";
-  $("tPump").textContent = "–";
+  updateOutputControls();
   $("tPing").textContent = "–";
   refresh();
 });

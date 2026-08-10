@@ -320,6 +320,12 @@ static void handle_complete_line(rn2483_t *device,
         } else if (radio_payload_matches(line, "50554D505F4F4646")) {
             device->pending_event = RN2483_EVENT_PUMP_OFF;
             device->stats.valid_commands++;
+        } else if (radio_payload_matches(line, "4C45445F4F4E")) {
+            device->pending_event = RN2483_EVENT_LED_ON;
+            device->stats.valid_commands++;
+        } else if (radio_payload_matches(line, "4C45445F4F4646")) {
+            device->pending_event = RN2483_EVENT_LED_OFF;
+            device->stats.valid_commands++;
         } else if (radio_payload_matches(line, "50494E47")) {
             device->pending_event = RN2483_EVENT_PING;
             device->stats.valid_commands++;
@@ -465,7 +471,7 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms)
     consume_received_bytes(device, now_ms);
 
     /* Leave the module idle after PING so the application can queue PONG
-       before continuous reception is re-armed. Pump behavior is unchanged. */
+       before continuous reception is re-armed. */
     if (device->pending_event == RN2483_EVENT_PING) {
         return;
     }

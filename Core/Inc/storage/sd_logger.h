@@ -40,11 +40,13 @@ typedef struct {
     sd_logger_status_t status;
     bool mounted;
     bool file_open;
+    bool experiment_file;
 } sd_logger_t;
 
 void sd_logger_init(sd_logger_t *logger, uint32_t now_ms);
 void sd_logger_push(sd_logger_t *logger,
                     const payload_log_record_t *record);
+void sd_logger_begin_experiment(sd_logger_t *logger, uint32_t now_ms);
 void sd_logger_service(sd_logger_t *logger, uint32_t now_ms);
 void sd_logger_close(sd_logger_t *logger);
 

@@ -463,11 +463,25 @@ static void process_radio(uint32_t now_ms)
     rn2483_event_t event;
     while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
         if (event == RN2483_EVENT_PUMP_ON) {
+            const bool pump_was_on = payload_pump_on;
             set_pump(true);
-            debug_transmit("EVENT PUMP_ON applied pump=1\r\n");
+            if (!pump_was_on) {
+                sd_logger_begin_experiment(&logger, now_ms);
+                debug_transmit(
+                    "EVENT PUMP_ON applied pump=1 log=EXP\r\n");
+            } else {
+                debug_transmit(
+                    "EVENT PUMP_ON applied pump=1 log=unchanged\r\n");
+            }
         } else if (event == RN2483_EVENT_PUMP_OFF) {
             set_pump(false);
             debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
+        } else if (event == RN2483_EVENT_LED_ON) {
+            set_led_pwm(100U);
+            debug_transmit("EVENT LED_ON applied led=100\r\n");
+        } else if (event == RN2483_EVENT_LED_OFF) {
+            set_led_pwm(0U);
+            debug_transmit("EVENT LED_OFF applied led=0\r\n");
         } else if (event == RN2483_EVENT_PING) {
             /* Hold the RN2483 idle briefly so the bridge has time to switch
                from transmit completion into receive mode before PONG starts. */
@@ -633,8 +647,7 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
     ping_reply_at_ms = 0U;
     ping_reply_pending = false;
     set_pump(false);
-    /* Temporary hardware checkout: keep the UV LED array on after app init. */
-    set_led_pwm(100U);
+    set_led_pwm(0U);
 
     initialize_accelerometer(now_ms);
     initialize_uv_sensor(now_ms);

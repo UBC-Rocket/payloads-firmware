@@ -183,12 +183,28 @@ static void test_configuration_and_commands(void)
     rn2483_process(&device, now_ms);
     CHECK(rn2483_is_ready(&device));
 
+    feed_line(&device, "radio_rx 4C45445F4F4E");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_LED_ON);
+    feed_line(&device, "ok");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+
+    feed_line(&device, "radio_rx 4C45445F4F4646");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_LED_OFF);
+    feed_line(&device, "ok");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+
     const uint32_t command_count_before_ping = fake.command_count;
     feed_line(&device, "radio_rx  50494E47");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PING);
-    CHECK(device.stats.valid_commands == 4U);
+    CHECK(device.stats.valid_commands == 6U);
     CHECK(fake.command_count == command_count_before_ping);
     CHECK(rn2483_send_text(&device, "PONG"));
 

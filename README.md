@@ -40,12 +40,16 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   marked dotted-quarter tempos of 50, 65, and 60 BPM, then stops the buzzer
   output low. TIM2 no longer drives the UV LED.
 - PD1 is the `UVLED_CTRL` GPIO and is driven high during startup.
-  It is not controlled by the radio command path and is not connected to a
-  timer channel.
+  It is a binary GPIO controlled by `LED_ON` and `LED_OFF`; it is not connected
+  to a timer channel and PWM commands are not supported.
 - A preformatted FAT16 or FAT32 SD card on SPI2 is mounted without formatting.
   Each boot creates the first free `LOG0000.CSV` through `LOG9999.CSV`, buffers
   records in RAM, writes in batches, and synchronizes once per second. Failed
-  cards are retried every five seconds while acquisition continues.
+  cards are retried every five seconds while acquisition continues. On each
+  pump off-to-on transition, queued pre-pump records are flushed to the current
+  file and logging continues in the first free `EXP0000.CSV` through
+  `EXP9999.CSV`. Repeated `PUMP_ON` packets while the pump is already on do not
+  create extra files.
 - USART2 uses the RN2483 default of 57600 baud. Startup sends the RN2483 break
   and `0x55` synchronization sequence, pauses the MAC, applies and reads back the
   required raw-LoRa profile at 433575000 Hz, then enters continuous receive
@@ -57,26 +61,30 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   request and causes a one-shot `PONG` reply after a short turnaround delay.
 - USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
   the configured radio profile at boot, radio state and receive counters once
-  per second, and an immediate `EVENT ... applied` line when a pump command
+  per second, and an immediate `EVENT ... applied` line when an output command
   is applied. Each new LTR390 conversion prints `UV sample` with its timestamp,
   raw count, validity, counters, and I2C3 bus number; failed reads print
   `UV read` diagnostics. The range monitor displays these lines without special
   parsing.
-- `PUMP_ON` sets PD2 high and `PUMP_OFF` sets PD2 low. `PING` leaves all outputs
-  unchanged and replies with `PONG`. These are the only accepted radio
+- `PUMP_ON` and `PUMP_OFF` independently control the PD2 pump output.
+  `LED_ON` and `LED_OFF` independently control the PD1 LED output; PWM commands
+  are not accepted. `PING` leaves both outputs unchanged and replies with
+  `PONG`. These are the only accepted radio
   payloads. An optional transmitted CR, LF, or CRLF terminator is ignored so
   line-oriented serial bridges work. Other malformed or unknown packets leave
-  the pump unchanged. The pump starts low and the UV LED starts high; both are
+  both outputs unchanged. The pump starts low and the UV LED starts high; both are
   forced low by `Error_Handler`.
 
 The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
 ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
-`PUMP_OFF`, and `PING` lines from `range-monitor.html`. Reception is interrupt-driven,
+`PUMP_OFF`, `LED_ON`, `LED_OFF`, and `PING` lines from
+`range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. Between two-second
-receive slices the bridge converts the command to a raw-LoRa hex payload. Pump
-commands are transmitted three times with the same SF12/BW125/CR4/5/sync-0x34
+receive slices the bridge converts the command to a raw-LoRa hex payload. Output
+commands are transmitted three times with the same
+SF12/BW125/CR4/5/sync-0x34
 profile; `PING` is transmitted once. The bridge waits for each `radio_tx_ok`
-and returns to receive mode. Repetition gives the idempotent pump command extra
+and returns to receive mode. Repetition gives each idempotent output command extra
 link margin. Ping success is only
 reported after the payload returns `PONG`. `BRIDGE SERIAL RX ...` confirms the
 browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
@@ -116,7 +124,7 @@ ctest --test-dir build/host-tests --output-on-failure
 ```
 
 The tests cover BMI088 FIFO parsing and SPI framing, the LTR390 driver,
-fragmented RN2483 replies and pump commands, buffered FatFs logging and
+fragmented RN2483 replies and output commands, buffered FatFs logging and
 recovery, and byte-level SDHC initialization/read/write behavior.
 
 Useful debugger globals include `accel_last_status`, `accel_latest_sample`,
@@ -129,10 +137,11 @@ Useful debugger globals include `accel_last_status`, `accel_latest_sample`,
 Protocol references are the local copies in `Docs/` and the
 [Microchip RN2483 command reference](https://ww1.microchip.com/downloads/en/DeviceDoc/RN2483-LoRa-Technology-Module-Command-Reference-User-Guide-DS40001784G.pdf).
 
-For pump-command troubleshooting, connect a 115200-baud adapter to USART1 TX
+For output-command troubleshooting, connect a 115200-baud adapter to USART1 TX
 (PA9) and watch the `RADIO` lines. `ready=1 phase=2` means the RN2483 is
 listening. If `lines` does not change, no module response or packet reached the
 firmware. Increasing `badpkt` means LoRa data arrived with the wrong payload;
-increasing `valid` followed by `EVENT PUMP_ON applied pump=1` proves the command
-was decoded and PD2 was driven high. The browser's serial write still requires
-the connected ground bridge to convert `PUMP_ON` into an LoRa transmission.
+increasing `valid` followed by `EVENT PUMP_ON applied pump=1` or
+`EVENT LED_ON applied led=100` proves the command was decoded and the requested
+output was driven high. The browser's serial write still requires the connected
+ground bridge to convert the command into an LoRa transmission.

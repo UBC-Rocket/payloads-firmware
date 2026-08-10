@@ -11,6 +11,7 @@ static unsigned int sync_calls;
 static unsigned int close_calls;
 static FRESULT forced_write_result;
 static char last_write[SD_LOGGER_STAGING_SIZE + 1U];
+static char last_open_path[20];
 
 #define CHECK(condition)                                                      \
     do {                                                                      \
@@ -33,9 +34,9 @@ FRESULT f_mount(FATFS *filesystem, const TCHAR *path, BYTE option)
 FRESULT f_open(FIL *file, const TCHAR *path, BYTE mode)
 {
     (void)file;
-    (void)path;
     (void)mode;
     open_calls++;
+    snprintf(last_open_path, sizeof(last_open_path), "%s", path);
     return FR_OK;
 }
 
@@ -99,6 +100,7 @@ static void reset_fakes(void)
     close_calls = 0U;
     forced_write_result = FR_OK;
     last_write[0] = '\0';
+    last_open_path[0] = '\0';
 }
 
 static void test_format(void)
@@ -133,6 +135,7 @@ static void test_queue_and_service(void)
     CHECK(sd_logger_status(&logger) == SD_LOGGER_READY);
     CHECK(mount_calls == 1U);
     CHECK(open_calls == 1U);
+    CHECK(strcmp(last_open_path, "0:/LOG0000.CSV") == 0);
     CHECK(write_calls == 1U);
     CHECK(strcmp(last_write, PAYLOAD_LOG_CSV_HEADER) == 0);
 
@@ -161,10 +164,33 @@ static void test_queue_and_service(void)
     CHECK(close_calls == 1U);
 }
 
+static void test_experiment_file_rollover(void)
+{
+    reset_fakes();
+    sd_logger_t logger;
+    sd_logger_init(&logger, 100U);
+    sd_logger_service(&logger, 100U);
+    CHECK(strcmp(last_open_path, "0:/LOG0000.CSV") == 0);
+
+    const payload_log_record_t before_pump = make_record(110U);
+    sd_logger_push(&logger, &before_pump);
+    sd_logger_begin_experiment(&logger, 120U);
+    CHECK(logger.queue_count == 0U);
+    CHECK(logger.experiment_file);
+    CHECK(!logger.file_open);
+    CHECK(close_calls == 1U);
+
+    sd_logger_service(&logger, 120U);
+    CHECK(sd_logger_status(&logger) == SD_LOGGER_READY);
+    CHECK(strcmp(last_open_path, "0:/EXP0000.CSV") == 0);
+    CHECK(open_calls == 2U);
+}
+
 int main(void)
 {
     test_format();
     test_queue_and_service();
+    test_experiment_file_rollover();
 
     if (failures != 0) {
         fprintf(stderr, "%d SD logger test(s) failed\n", failures);

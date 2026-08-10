@@ -770,9 +770,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, PUMP_CTRL_Pin|VBAT_TRIGGER_Pin, GPIO_PIN_RESET);
 
-  /* UVLED_CTRL moved to PD1. Set its output latch high before changing
-     the pin to output mode so it is high from the start of GPIO setup. */
-  HAL_GPIO_WritePin(UVLED_CTRL_GPIO_Port, UVLED_CTRL_Pin, GPIO_PIN_SET);
+  /* Keep the PD1 UV LED control low before changing the pin to output mode,
+     so the LED cannot pulse on during GPIO initialization. */
+  HAL_GPIO_WritePin(UVLED_CTRL_GPIO_Port, UVLED_CTRL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : STAT_LEDR_Pin */
   GPIO_InitStruct.Pin = STAT_LEDR_Pin;
@@ -821,7 +821,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-  UVLED_SetDutyPercent(100U);
+  UVLED_SetDutyPercent(0U);
 
   /* USER CODE END MX_GPIO_Init_2 */
 }

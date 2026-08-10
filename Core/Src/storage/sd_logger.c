@@ -44,10 +44,12 @@ static bool mount_and_open(sd_logger_t *logger, uint32_t now_ms)
     logger->mounted = true;
 
     char filename[20];
+    const char *prefix = logger->experiment_file ? "EXP" : "LOG";
     bool opened = false;
     for (uint16_t index = 0U; index < SD_LOGGER_MAX_FILES; index++) {
         const int length =
-            snprintf(filename, sizeof(filename), "0:/LOG%04u.CSV", index);
+            snprintf(filename, sizeof(filename),
+                     "0:/%s%04u.CSV", prefix, index);
         if (length <= 0 || (size_t)length >= sizeof(filename)) {
             break;
         }
@@ -178,6 +180,37 @@ static void write_queued_records(sd_logger_t *logger, uint32_t now_ms)
         (logger->queue_tail + staged_records) %
         SD_LOGGER_QUEUE_CAPACITY;
     logger->queue_count -= staged_records;
+}
+
+void sd_logger_begin_experiment(sd_logger_t *logger, uint32_t now_ms)
+{
+    if (logger == NULL) {
+        return;
+    }
+
+    /* Keep every record collected before the pump transition in the boot log
+       before switching to a fresh experiment file. */
+    if (logger->file_open && logger->queue_count > 0U) {
+        write_queued_records(logger, now_ms);
+    }
+    if (logger->file_open) {
+        logger->last_fatfs_result = f_sync(&logger->file);
+        if (logger->last_fatfs_result != FR_OK) {
+            mark_offline(logger, now_ms, logger->last_fatfs_result);
+        }
+    }
+    if (logger->file_open) {
+        (void)f_close(&logger->file);
+        logger->file_open = false;
+    }
+    if (logger->mounted) {
+        (void)f_mount(NULL, "0:", 1U);
+        logger->mounted = false;
+    }
+
+    logger->experiment_file = true;
+    logger->status = SD_LOGGER_OFFLINE;
+    logger->retry_at_ms = now_ms;
 }
 
 void sd_logger_service(sd_logger_t *logger, uint32_t now_ms)

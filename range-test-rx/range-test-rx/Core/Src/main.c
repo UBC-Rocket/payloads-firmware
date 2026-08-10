@@ -40,7 +40,7 @@
 #define SERIAL_COMMAND_SIZE  16U
 #define SERIAL_QUEUE_DEPTH   2U
 #define SILENCE_LOG_MS       15000U
-#define PUMP_COMMAND_REPEATS 3U
+#define CONTROL_COMMAND_REPEATS 3U
 #define PING_COMMAND_REPEATS 1U
 #define PING_REPLY_TIMEOUT_MS 12000U
 /* USER CODE END PD */
@@ -522,7 +522,7 @@ int main(void)
      so the loop stays alive and can re-arm even if nothing is heard. */
   RN2483_CommandChecked("radio set wdt 2000");
   Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
-  Debug_Log("bridge serial ready: send PUMP_ON, PUMP_OFF, or PING at 115200");
+  Debug_Log("bridge serial ready: PUMP_ON/OFF, LED_ON/OFF, or PING");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -559,6 +559,8 @@ int main(void)
     {
       if (strcmp(serial_line, "PUMP_ON") == 0 ||
           strcmp(serial_line, "PUMP_OFF") == 0 ||
+          strcmp(serial_line, "LED_ON") == 0 ||
+          strcmp(serial_line, "LED_OFF") == 0 ||
           strcmp(serial_line, "PING") == 0)
       {
         char detail[32];
@@ -567,7 +569,7 @@ int main(void)
         const bool is_ping = strcmp(serial_line, "PING") == 0;
         const uint8_t required_transmissions = is_ping
                                                    ? PING_COMMAND_REPEATS
-                                                   : PUMP_COMMAND_REPEATS;
+                                                   : CONTROL_COMMAND_REPEATS;
 
         if (is_ping && ping_waiting)
         {
@@ -584,8 +586,8 @@ int main(void)
           ping_started_ms = HAL_GetTick();
         }
 
-        /* Pump commands are idempotent and repeated for link margin. PING is
-           sent once so one request produces exactly one PONG. */
+        /* Output commands are idempotent and repeated for link margin.
+           PING is sent once so one request produces exactly one PONG. */
         for (uint8_t attempt = 0U;
              attempt < required_transmissions;
              attempt++)
