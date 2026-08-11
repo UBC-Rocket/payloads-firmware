@@ -41,8 +41,9 @@
 #define SERIAL_QUEUE_DEPTH   2U
 #define SILENCE_LOG_MS       15000U
 #define CONTROL_COMMAND_REPEATS 3U
-#define PING_COMMAND_REPEATS 1U
+#define ONE_SHOT_COMMAND_REPEATS 1U
 #define PING_REPLY_TIMEOUT_MS 12000U
+#define BUMP_MAX_SECONDS     3600U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -84,6 +85,7 @@ static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
 static bool Serial_TakeCommand(char *command, uint16_t command_size);
+static bool Parse_Bump_Command(const char *command, uint32_t *seconds);
 static int Hex_Nibble(char c);
 /* USER CODE END PFP */
 
@@ -311,6 +313,47 @@ static bool Serial_TakeCommand(char *command, uint16_t command_size)
 }
 
 /**
+  * @brief Validate a BUMP command and return its whole-second duration.
+  */
+static bool Parse_Bump_Command(const char *command, uint32_t *seconds)
+{
+  static const char prefix[] = "BUMP ";
+  if (command == NULL || seconds == NULL ||
+      strncmp(command, prefix, sizeof(prefix) - 1U) != 0)
+  {
+    return false;
+  }
+
+  const char *digit = command + (sizeof(prefix) - 1U);
+  if (*digit == '\0')
+  {
+    return false;
+  }
+
+  uint32_t value = 0U;
+  while (*digit != '\0')
+  {
+    if (*digit < '0' || *digit > '9')
+    {
+      return false;
+    }
+    value = value * 10U + (uint32_t)(*digit - '0');
+    if (value > BUMP_MAX_SECONDS)
+    {
+      return false;
+    }
+    digit++;
+  }
+
+  if (value == 0U)
+  {
+    return false;
+  }
+  *seconds = value;
+  return true;
+}
+
+/**
   * @brief Assemble CR/LF-terminated WebSerial commands without blocking the
   *        RN2483 receive wait in the main loop.
   */
@@ -522,7 +565,7 @@ int main(void)
      so the loop stays alive and can re-arm even if nothing is heard. */
   RN2483_CommandChecked("radio set wdt 2000");
   Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
-  Debug_Log("bridge serial ready: PUMP_ON/OFF, LED_ON/OFF, or PING");
+  Debug_Log("bridge serial ready: PUMP_ON/OFF, BUMP 1-3600, LED_ON/OFF, or PING");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -557,18 +600,21 @@ int main(void)
        the module is idle and can safely switch from RX to TX. */
     if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
     {
+      uint32_t bump_seconds = 0U;
+      const bool is_bump = Parse_Bump_Command(serial_line, &bump_seconds);
       if (strcmp(serial_line, "PUMP_ON") == 0 ||
           strcmp(serial_line, "PUMP_OFF") == 0 ||
           strcmp(serial_line, "LED_ON") == 0 ||
           strcmp(serial_line, "LED_OFF") == 0 ||
+          is_bump ||
           strcmp(serial_line, "PING") == 0)
       {
         char detail[32];
         HAL_StatusTypeDef transmit_status = HAL_OK;
         uint8_t transmissions = 0U;
         const bool is_ping = strcmp(serial_line, "PING") == 0;
-        const uint8_t required_transmissions = is_ping
-                                                   ? PING_COMMAND_REPEATS
+        const uint8_t required_transmissions = is_ping || is_bump
+                                                   ? ONE_SHOT_COMMAND_REPEATS
                                                    : CONTROL_COMMAND_REPEATS;
 
         if (is_ping && ping_waiting)
@@ -586,8 +632,9 @@ int main(void)
           ping_started_ms = HAL_GetTick();
         }
 
-        /* Output commands are idempotent and repeated for link margin.
-           PING is sent once so one request produces exactly one PONG. */
+        /* Persistent output commands are idempotent and repeated for link
+           margin. Timed BUMP and PING commands are sent once so their effects
+           cannot be extended or duplicated by bridge retries. */
         for (uint8_t attempt = 0U;
              attempt < required_transmissions;
              attempt++)
