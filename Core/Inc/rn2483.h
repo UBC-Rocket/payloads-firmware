@@ -17,6 +17,7 @@ extern "C" {
 #define RN2483_RX_RING_SIZE 256U
 #define RN2483_LINE_SIZE 96U
 #define RN2483_COMMAND_SIZE 96U
+#define RN2483_BUMP_MAX_SECONDS 3600U
 
 typedef enum {
     RN2483_OK = 0,
@@ -31,6 +32,7 @@ typedef enum {
     RN2483_EVENT_PUMP_OFF,
     RN2483_EVENT_LED_ON,
     RN2483_EVENT_LED_OFF,
+    RN2483_EVENT_BUMP,
     RN2483_EVENT_PING
 } rn2483_event_t;
 
@@ -87,6 +89,7 @@ typedef struct {
     uint8_t configuration_step;
     uint32_t deadline_ms;
     uint32_t retry_at_ms;
+    uint32_t pending_bump_seconds;
     rn2483_event_t pending_event;
     rn2483_phase_t phase;
     bool waiting_for_reply;
@@ -114,6 +117,9 @@ void rn2483_process(rn2483_t *device, uint32_t now_ms);
  * @brief Return and clear the next validated payload command.
  */
 rn2483_event_t rn2483_take_event(rn2483_t *device);
+
+/** Return the duration carried by the most recently validated BUMP event. */
+uint32_t rn2483_bump_seconds(const rn2483_t *device);
 
 bool rn2483_is_ready(const rn2483_t *device);
 

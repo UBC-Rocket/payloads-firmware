@@ -199,12 +199,49 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
 
+    feed_line(&device, "radio_rx 42554D502035");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
+    CHECK(rn2483_bump_seconds(&device) == 5U);
+    feed_line(&device, "ok");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+
+    feed_line(&device, "radio_rx 42554D5020333630300D0A");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
+    CHECK(rn2483_bump_seconds(&device) == RN2483_BUMP_MAX_SECONDS);
+    feed_line(&device, "ok");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+
+    const char *invalid_bumps[] = {
+        "radio_rx 42554D502030",
+        "radio_rx 42554D502033363031",
+        "radio_rx 42554D5020312E35",
+        "radio_rx 42554D5020",
+    };
+    for (size_t index = 0U;
+         index < sizeof(invalid_bumps) / sizeof(invalid_bumps[0]);
+         index++) {
+        feed_line(&device, invalid_bumps[index]);
+        now_ms++;
+        rn2483_process(&device, now_ms);
+        CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
+        feed_line(&device, "ok");
+        now_ms++;
+        rn2483_process(&device, now_ms);
+    }
+
     const uint32_t command_count_before_ping = fake.command_count;
     feed_line(&device, "radio_rx  50494E47");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PING);
-    CHECK(device.stats.valid_commands == 6U);
+    CHECK(device.stats.valid_commands == 8U);
+    CHECK(device.stats.invalid_packets == 5U);
     CHECK(fake.command_count == command_count_before_ping);
     CHECK(rn2483_send_text(&device, "PONG"));
 
@@ -235,6 +272,7 @@ static void test_validation_and_recovery(void)
         .sync_word = 0x12U,
     };
     rn2483_t device;
+    CHECK(rn2483_bump_seconds(NULL) == 0U);
     CHECK(rn2483_init(NULL, &transport, &config, 0U) ==
           RN2483_ERROR_ARGUMENT);
     config.frequency_hz = 915000000U;

@@ -278,31 +278,99 @@ static bool configuration_reply_matches(const rn2483_t *device,
     return strings_equal_case_insensitive(line, expected);
 }
 
-static bool radio_payload_matches(const char *line, const char *payload_hex)
+static int hex_nibble(char value)
+{
+    if (value >= '0' && value <= '9') {
+        return value - '0';
+    }
+    if (value >= 'A' && value <= 'F') {
+        return value - 'A' + 10;
+    }
+    if (value >= 'a' && value <= 'f') {
+        return value - 'a' + 10;
+    }
+    return -1;
+}
+
+static bool decode_radio_payload(const char *line,
+                                 char *decoded,
+                                 size_t decoded_size)
 {
     static const char prefix[] = "radio_rx";
-    if (strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
+    if (line == NULL || decoded == NULL || decoded_size == 0U ||
+        strncmp(line, prefix, sizeof(prefix) - 1U) != 0) {
         return false;
     }
 
-    const char *payload = line + (sizeof(prefix) - 1U);
-    if (*payload != ' ') {
+    const char *hex = line + (sizeof(prefix) - 1U);
+    if (*hex != ' ') {
         return false;
     }
-    while (*payload == ' ') {
-        payload++;
+    while (*hex == ' ') {
+        hex++;
     }
 
-    const size_t payload_length = strlen(payload_hex);
-    if (strncmp(payload, payload_hex, payload_length) != 0) {
+    const size_t hex_length = strlen(hex);
+    const size_t decoded_length = hex_length / 2U;
+    if (hex_length == 0U || (hex_length % 2U) != 0U ||
+        decoded_length >= decoded_size) {
         return false;
     }
 
-    const char *suffix = payload + payload_length;
-    return suffix[0] == '\0' ||
-           strcmp(suffix, "0D") == 0 ||
-           strcmp(suffix, "0A") == 0 ||
-           strcmp(suffix, "0D0A") == 0;
+    for (size_t index = 0U; index < decoded_length; index++) {
+        const int high = hex_nibble(hex[index * 2U]);
+        const int low = hex_nibble(hex[index * 2U + 1U]);
+        if (high < 0 || low < 0) {
+            return false;
+        }
+        const char value = (char)((high << 4) | low);
+        if (value == '\0') {
+            return false;
+        }
+        decoded[index] = value;
+    }
+
+    size_t length = decoded_length;
+    if (length > 0U && decoded[length - 1U] == '\n') {
+        length--;
+    }
+    if (length > 0U && decoded[length - 1U] == '\r') {
+        length--;
+    }
+    decoded[length] = '\0';
+    return length > 0U;
+}
+
+static bool parse_bump_seconds(const char *payload, uint32_t *seconds)
+{
+    static const char prefix[] = "BUMP ";
+    if (payload == NULL || seconds == NULL ||
+        strncmp(payload, prefix, sizeof(prefix) - 1U) != 0) {
+        return false;
+    }
+
+    const char *digit = payload + (sizeof(prefix) - 1U);
+    if (*digit == '\0') {
+        return false;
+    }
+
+    uint32_t value = 0U;
+    while (*digit != '\0') {
+        if (*digit < '0' || *digit > '9') {
+            return false;
+        }
+        value = value * 10U + (uint32_t)(*digit - '0');
+        if (value > RN2483_BUMP_MAX_SECONDS) {
+            return false;
+        }
+        digit++;
+    }
+
+    if (value == 0U) {
+        return false;
+    }
+    *seconds = value;
+    return true;
 }
 
 static void handle_complete_line(rn2483_t *device,
@@ -314,19 +382,28 @@ static void handle_complete_line(rn2483_t *device,
     memcpy(device->last_line, line, line_length + 1U);
 
     if (device->phase == RN2483_PHASE_LISTENING) {
-        if (radio_payload_matches(line, "50554D505F4F4E")) {
+        char payload[(RN2483_LINE_SIZE / 2U) + 1U];
+        uint32_t bump_seconds = 0U;
+        const bool payload_valid =
+            decode_radio_payload(line, payload, sizeof(payload));
+        if (payload_valid && strcmp(payload, "PUMP_ON") == 0) {
             device->pending_event = RN2483_EVENT_PUMP_ON;
             device->stats.valid_commands++;
-        } else if (radio_payload_matches(line, "50554D505F4F4646")) {
+        } else if (payload_valid && strcmp(payload, "PUMP_OFF") == 0) {
             device->pending_event = RN2483_EVENT_PUMP_OFF;
             device->stats.valid_commands++;
-        } else if (radio_payload_matches(line, "4C45445F4F4E")) {
+        } else if (payload_valid && strcmp(payload, "LED_ON") == 0) {
             device->pending_event = RN2483_EVENT_LED_ON;
             device->stats.valid_commands++;
-        } else if (radio_payload_matches(line, "4C45445F4F4646")) {
+        } else if (payload_valid && strcmp(payload, "LED_OFF") == 0) {
             device->pending_event = RN2483_EVENT_LED_OFF;
             device->stats.valid_commands++;
-        } else if (radio_payload_matches(line, "50494E47")) {
+        } else if (payload_valid &&
+                   parse_bump_seconds(payload, &bump_seconds)) {
+            device->pending_bump_seconds = bump_seconds;
+            device->pending_event = RN2483_EVENT_BUMP;
+            device->stats.valid_commands++;
+        } else if (payload_valid && strcmp(payload, "PING") == 0) {
             device->pending_event = RN2483_EVENT_PING;
             device->stats.valid_commands++;
         } else if (strncmp(line, "radio_rx ", 9U) == 0) {
@@ -525,6 +602,11 @@ rn2483_event_t rn2483_take_event(rn2483_t *device)
     const rn2483_event_t event = device->pending_event;
     device->pending_event = RN2483_EVENT_NONE;
     return event;
+}
+
+uint32_t rn2483_bump_seconds(const rn2483_t *device)
+{
+    return device == NULL ? 0U : device->pending_bump_seconds;
 }
 
 bool rn2483_is_ready(const rn2483_t *device)

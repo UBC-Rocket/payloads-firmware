@@ -35,10 +35,13 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   requires a calibrated optical-window factor for the assembled payload. I2C3
   must have the datasheet-recommended 1 kOhm to 10 kOhm pull-ups
   on SDA and SCL; MCU-internal pull-ups are not a substitute.
-- PA0 drives the passive buzzer from TIM2 channel 1. At startup it plays the
-  ten-bar right-hand line shown for "Can You Hear the Music," including the
-  marked dotted-quarter tempos of 50, 65, and 60 BPM, then stops the buzzer
-  output low. TIM2 no longer drives the UV LED.
+- PA0 drives the passive buzzer from TIM2 channel 1. At startup it plays a
+  monophonic transcription of measures 1-17 from the supplied first page of
+  Tony Ann's "The Interstellar Experience" at quarter note = 99, including its
+  printed dynamics, accents, crescendo, note values, and final half rest. At
+  the score's right-hand dyads, the passive buzzer plays the accented upper
+  note because one buzzer cannot emit both pitches simultaneously. It then
+  stops the buzzer output low. TIM2 no longer drives the UV LED.
 - PD1 is the `UVLED_CTRL` GPIO and is driven high during startup.
   It is a binary GPIO controlled by `LED_ON` and `LED_OFF`; it is not connected
   to a timer channel and PWM commands are not supported.
@@ -67,6 +70,9 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   `UV read` diagnostics. The range monitor displays these lines without special
   parsing.
 - `PUMP_ON` and `PUMP_OFF` independently control the PD2 pump output.
+  `BUMP <seconds>` turns the pump on for 1 through 3600 whole seconds, then
+  turns it off without blocking sensor acquisition, logging, or radio work.
+  A later `PUMP_ON`, `PUMP_OFF`, or `BUMP` supersedes the active bump timer.
   `LED_ON` and `LED_OFF` independently control the PD1 LED output; PWM commands
   are not accepted. `PING` leaves both outputs unchanged and replies with
   `PONG`. These are the only accepted radio
@@ -77,15 +83,15 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
 
 The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
 ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
-`PUMP_OFF`, `LED_ON`, `LED_OFF`, and `PING` lines from
+`PUMP_OFF`, `BUMP <seconds>`, `LED_ON`, `LED_OFF`, and `PING` lines from
 `range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. Between two-second
 receive slices the bridge converts the command to a raw-LoRa hex payload. Output
 commands are transmitted three times with the same
 SF12/BW125/CR4/5/sync-0x34
-profile; `PING` is transmitted once. The bridge waits for each `radio_tx_ok`
+profile; `BUMP` and `PING` are transmitted once. The bridge waits for each `radio_tx_ok`
 and returns to receive mode. Repetition gives each idempotent output command extra
-link margin. Ping success is only
+link margin without restarting a timed bump. Ping success is only
 reported after the payload returns `PONG`. `BRIDGE SERIAL RX ...` confirms the
 browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
 RN2483 completed all transmissions (it is not an acknowledgement from the
@@ -141,7 +147,8 @@ For output-command troubleshooting, connect a 115200-baud adapter to USART1 TX
 (PA9) and watch the `RADIO` lines. `ready=1 phase=2` means the RN2483 is
 listening. If `lines` does not change, no module response or packet reached the
 firmware. Increasing `badpkt` means LoRa data arrived with the wrong payload;
-increasing `valid` followed by `EVENT PUMP_ON applied pump=1` or
+increasing `valid` followed by `EVENT PUMP_ON applied pump=1`,
+`EVENT BUMP applied pump=1 seconds=...`, or
 `EVENT LED_ON applied led=100` proves the command was decoded and the requested
 output was driven high. The browser's serial write still requires the connected
 ground bridge to convert the command into an LoRa transmission.

@@ -37,6 +37,7 @@
 #define BUZZER_TIMER_TICK_HZ \
   (TIM2_INPUT_CLOCK_HZ / (BUZZER_TIMER_PRESCALER + 1U))
 #define BUZZER_NOTE_GAP_MS 4U
+#define INTERSTELLAR_BPM 99U
 
 /* USER CODE END PD */
 
@@ -113,28 +114,136 @@ static void update_buzzer_output(uint32_t period_ticks,
   __HAL_TIM_ENABLE(&htim2);
 }
 
+typedef enum
+{
+  NOTE_G4 = 0,
+  NOTE_A4,
+  NOTE_B4,
+  NOTE_C5,
+  NOTE_D5,
+  NOTE_E5,
+  NOTE_F5,
+  NOTE_G5,
+  NOTE_A5,
+  NOTE_B5,
+  NOTE_C6,
+  NOTE_D6,
+  NOTE_E6,
+  NOTE_COUNT
+} startup_note_t;
+
+static void play_startup_note(startup_note_t note,
+                              uint8_t sixteenth_count,
+                              uint8_t pulse_percent,
+                              uint32_t *timing_remainder)
+{
+  const uint32_t timing_denominator = 4U * INTERSTELLAR_BPM;
+  const uint32_t timing_numerator =
+    ((uint32_t)sixteenth_count * 60000U) + *timing_remainder;
+  const uint32_t duration_ms = timing_numerator / timing_denominator;
+  *timing_remainder = timing_numerator % timing_denominator;
+
+  static const uint16_t frequency_hz[NOTE_COUNT] = {
+    392U,  /* G4 */
+    440U,  /* A4 */
+    494U,  /* B4 */
+    523U,  /* C5 */
+    587U,  /* D5 */
+    659U,  /* E5 */
+    698U,  /* F5 */
+    784U,  /* G5 */
+    880U,  /* A5 */
+    988U,  /* B5 */
+    1047U, /* C6 */
+    1175U, /* D6 */
+    1319U, /* E6 */
+  };
+  const uint32_t period_ticks =
+    (BUZZER_TIMER_TICK_HZ + (frequency_hz[note] / 2U)) /
+    frequency_hz[note];
+  const uint32_t pulse_ticks =
+    (period_ticks * pulse_percent) / 100U;
+  update_buzzer_output(period_ticks, pulse_ticks);
+
+  const uint32_t sounding_ms = duration_ms > BUZZER_NOTE_GAP_MS
+                                 ? duration_ms - BUZZER_NOTE_GAP_MS
+                                 : duration_ms;
+  HAL_Delay(sounding_ms);
+  update_buzzer_output(period_ticks, 0U);
+  if (duration_ms > sounding_ms)
+  {
+    HAL_Delay(duration_ms - sounding_ms);
+  }
+}
+
+static void play_startup_rest(uint8_t sixteenth_count,
+                              uint32_t *timing_remainder)
+{
+  const uint32_t timing_denominator = 4U * INTERSTELLAR_BPM;
+  const uint32_t timing_numerator =
+    ((uint32_t)sixteenth_count * 60000U) + *timing_remainder;
+  HAL_Delay(timing_numerator / timing_denominator);
+  *timing_remainder = timing_numerator % timing_denominator;
+}
+
 static void play_startup_song(void)
 {
-  typedef struct
+  enum
   {
-    int8_t first_scale_index;
-    int8_t scale_step;
-    uint8_t group_count;
-    uint8_t pattern_index;
-    uint8_t dotted_quarter_bpm;
-  } startup_song_section_t;
+    DYNAMIC_P = 25U,
+    DYNAMIC_MP = 35U,
+    DYNAMIC_ACCENT_OFFSET = 10U,
+    DYNAMIC_MARCATO = 50U,
+  };
+  enum
+  {
+    PATTERN_ACA = 0,
+    PATTERN_BGB,
+    PATTERN_BGB_RISE,
+    PATTERN_A5_ACA,
+    PATTERN_B5_BGB,
+    PATTERN_B5_BGB_RISE,
+    PATTERN_C6_ACA,
+    PATTERN_TRANSITION,
+  };
 
-  /* G-major scale covering the complete right-hand line in bars 1-10. */
-  static const uint16_t scale_frequency_hz[] = {
-    262U,  /* C4 */
+  /* Measures 2-13 of the attached score. At the printed dyads in measures
+     6-13, keep the accented upper note for this monophonic buzzer reduction. */
+  static const startup_note_t patterns[][16] = {
+    {NOTE_B5, NOTE_B4, NOTE_G4, NOTE_B4,
+     NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4,
+     NOTE_E5, NOTE_B4, NOTE_F5, NOTE_B4,
+     NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4},
   };
-  static const uint8_t run_pattern[][6] = {
-    {0U, 1U, 2U, 4U, 5U, 3U},  /* Rising six-note contour. */
-    {5U, 4U, 3U, 1U, 0U, 2U},  /* Falling six-note contour. */
+  static const uint8_t measure_patterns[] = {
+    PATTERN_ACA,         /* 2 */
+    PATTERN_BGB,         /* 3 */
+    PATTERN_ACA,         /* 4 */
+    PATTERN_BGB_RISE,    /* 5 */
+    PATTERN_A5_ACA,      /* 6 */
+    PATTERN_A5_ACA,      /* 7 */
+    PATTERN_B5_BGB,      /* 8 */
+    PATTERN_B5_BGB_RISE, /* 9 */
+    PATTERN_C6_ACA,      /* 10 */
+    PATTERN_C6_ACA,      /* 11 */
+    PATTERN_B5_BGB,      /* 12 */
+    PATTERN_TRANSITION,  /* 13 */
   };
-  static const startup_song_section_t sections[] = {
-    /* Bars 1-4, bars 5-8, then the bars 9-10 reprise. */
-    {1,  1, 8U, 0U, 50U},
+  static const startup_note_t measure_15[] = {
+    NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5,
+    NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4,
+    NOTE_A4, NOTE_A5, NOTE_G5, NOTE_F5,
+    NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4,
+  };
+  static const startup_note_t measure_16[] = {
+    NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5,
+    NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4,
+    NOTE_A4, NOTE_A5, NOTE_G5, NOTE_F5,
+    NOTE_E5, NOTE_D5, NOTE_C5, NOTE_D5,
+  };
+  static const startup_note_t measure_17[] = {
+    NOTE_B4, NOTE_C5, NOTE_D5, NOTE_G5,
+    NOTE_B5, NOTE_C6, NOTE_D6, NOTE_E6,
   };
 
   __HAL_TIM_DISABLE(&htim2);
@@ -148,42 +257,88 @@ static void play_startup_song(void)
     Error_Handler();
   }
 
-  for (uint32_t section_index = 0U;
-       section_index < (sizeof(sections) / sizeof(sections[0]));
-       section_index++)
+  uint32_t timing_remainder = 0U;
+
+  /* Measure 1: four quarter-note E5s, piano. */
+  for (uint32_t note_index = 0U; note_index < 2U; note_index++)
   {
-    const startup_song_section_t *section = &sections[section_index];
-    const uint32_t note_duration_ms =
-      (60000U + (3U * section->dotted_quarter_bpm)) /
-      (6U * section->dotted_quarter_bpm);
-
-    for (uint32_t group_index = 0U;
-         group_index < section->group_count;
-         group_index++)
-    {
-      const int32_t group_scale_index =
-        section->first_scale_index +
-        ((int32_t)group_index * section->scale_step);
-
-      for (uint32_t note_index = 0U;
-           note_index < (sizeof(run_pattern[0]) /
-                         sizeof(run_pattern[0][0]));
-           note_index++)
-      {
-        const uint32_t scale_index =
-          (uint32_t)(group_scale_index +
-                     run_pattern[section->pattern_index][note_index]);
-        const uint32_t frequency_hz = scale_frequency_hz[scale_index];
-        const uint32_t period_ticks =
-          (BUZZER_TIMER_TICK_HZ + (frequency_hz / 2U)) / frequency_hz;
-        update_buzzer_output(period_ticks, period_ticks / 2U);
-
-        HAL_Delay(note_duration_ms - BUZZER_NOTE_GAP_MS);
-        update_buzzer_output(period_ticks, 0U);
-        HAL_Delay(BUZZER_NOTE_GAP_MS);
-      }
-    }
+    play_startup_note(NOTE_E5, 4U, DYNAMIC_P, &timing_remainder);
   }
+
+  // for (uint32_t measure_index = 0U;
+  //      measure_index <
+  //        (sizeof(measure_patterns) / sizeof(measure_patterns[0]));
+  //      measure_index++)
+  // {
+  //   const startup_note_t *measure = patterns[measure_patterns[measure_index]];
+  //   for (uint32_t note_index = 0U; note_index < 16U; note_index++)
+  //   {
+  //     uint8_t pulse_percent;
+  //     if (measure_index < 3U)
+  //     {
+  //       pulse_percent = DYNAMIC_P;
+  //     }
+  //     else if (measure_index == 3U)
+  //     {
+  //       /* The hairpin in measure 5 rises from p into the following mp. */
+  //       pulse_percent =
+  //         (uint8_t)(DYNAMIC_P +
+  //                   (((DYNAMIC_MP - DYNAMIC_P) * note_index) / 15U));
+  //     }
+  //     else
+  //     {
+  //       pulse_percent = DYNAMIC_MP;
+  //     }
+
+  //     if (note_index == 0U && measure_index >= 4U)
+  //     {
+  //       pulse_percent = DYNAMIC_MARCATO;
+  //     }
+  //     else if ((note_index % 4U) == 0U)
+  //     {
+  //       pulse_percent =
+  //         (uint8_t)(pulse_percent + DYNAMIC_ACCENT_OFFSET);
+  //     }
+  //     play_startup_note(measure[note_index],
+  //                       1U,
+  //                       pulse_percent,
+  //                       &timing_remainder);
+  //   }
+  // }
+
+  // /* Measure 14. */
+  // for (uint32_t note_index = 0U; note_index < 4U; note_index++)
+  // {
+  //   play_startup_note(NOTE_A4, 4U, DYNAMIC_MP, &timing_remainder);
+  // }
+
+  // /* Measures 15 and 16. */
+  // for (uint32_t note_index = 0U; note_index < 16U; note_index++)
+  // {
+  //   play_startup_note(measure_15[note_index],
+  //                     1U,
+  //                     DYNAMIC_MP,
+  //                     &timing_remainder);
+  // }
+  // for (uint32_t note_index = 0U; note_index < 16U; note_index++)
+  // {
+  //   play_startup_note(measure_16[note_index],
+  //                     1U,
+  //                     DYNAMIC_MP,
+  //                     &timing_remainder);
+  // }
+
+  // /* Measure 17: two sixteenth-note runs, then the printed half rest. */
+  // for (uint32_t note_index = 0U;
+  //      note_index < (sizeof(measure_17) / sizeof(measure_17[0]));
+  //      note_index++)
+  // {
+  //   play_startup_note(measure_17[note_index],
+  //                     1U,
+  //                     DYNAMIC_MP,
+  //                     &timing_remainder);
+  // }
+  // play_startup_rest(8U, &timing_remainder);
 
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0U);
   if (HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1) != HAL_OK)
@@ -234,7 +389,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  //play_startup_song();
+  play_startup_song();
 
   payload_app_init(&hi2c3,
                    &hspi2,
