@@ -40,11 +40,13 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
 
 
 
-## Build
+## Building and Flashing
 
 The receiver must use the same raw-LoRa profile as the transmitter. The known
 module frequency defaults to 433575000 Hz; CMake requires the remaining values
 rather than silently building a receiver with guessed RF settings. For example:
+
+#### Main Board
 
 ```sh
 cmake --preset Debug \
@@ -53,6 +55,20 @@ cmake --preset Debug \
   -DRN2483_RADIO_CR=5 \
   -DRN2483_RADIO_SYNC_WORD=0x34
 cmake --build --preset Debug
+openocd -f interface/stlink.cfg -f target/stm32g0x.cfg \
+  -c "adapter speed 100" \
+  -c "reset_config srst_only srst_nogate connect_assert_srst" \
+  -c "program build/Debug/Payloads.elf verify reset exit"
+```
+
+#### Radio Bridge
+
+```sh
+cd range-test-rx/range-test-rx
+cmake --preset Debug
+cmake --build --preset Debug
+openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
+  -c "program build/Debug/range-test-rx.elf verify reset exit"
 ```
 
 Replace the example values with the transmitter's spreading factor, bandwidth,
