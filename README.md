@@ -32,7 +32,7 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
     <td width="25%">
       <img src="Photos/EasyEDA-logo.jpg" style="width: 100%;">
     </td>
-    <td width="75">
+    <td width="75%">
       <img src="Photos/JLCPCB-logo.png" style="width: 100%;">
     </td>
   </tr>
