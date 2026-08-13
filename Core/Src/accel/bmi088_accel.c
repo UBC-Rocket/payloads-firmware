@@ -37,7 +37,7 @@
 #define BMI088_ACCEL_FIFO_OVERREAD_MSB 0x80U
 
 const bmi088_accel_config_t bmi088_accel_default_config = {
-    .range = BMI088_ACCEL_RANGE_6G,
+    .range = BMI088_ACCEL_RANGE_24G,
     .odr = BMI088_ACCEL_ODR_100_HZ,
     .bandwidth = BMI088_ACCEL_BANDWIDTH_NORMAL,
 };
