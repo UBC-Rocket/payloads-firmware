@@ -1,6 +1,43 @@
 # Payloads firmware
 
-Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from the accel and the UV sensor(s; should be three, but currently only has 1). UV values are set using pwm in main.c, we should probably figure out exactly what values we want for that at some point. LORA might work, might not, who even knows. The rest of this readme is AI generated :smile:
+Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from the accelerometer and UV sensor to create a table to determine the effects of gravity on microtubulin. This experiment is happening in Cloudburst's nosecone, and to control it from a safe distance at the launch site, we're using the RN2483A LoRa Module. 
+
+## PCB Fabrication
+
+<table>
+  <tr>
+    <td rowspan="2" width="50%" align="center">
+      <img src="Photos/Payloads-Bay.jpg" height="700">
+    </td>
+    <td width="50%" align="center">
+      <img src="Photos/Payloads-LoRa-Carrier.jpg" height="350">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="Photos/Payloads-PCB.jpg" height="350">
+    </td>
+  </tr>
+</table>
+
+
+
+
+The boards for this design were made possible with the support of [JLCPCB](https://jlcpcb.com/) and [EasyEDA](https://easyeda.com/). Their excellent turnaround times and affordable manufacturing costs made it possible to quickly iterate on these designs and produce high-quality PCBs in time for [Launch Canada 2026](https://www.launchcanada.org/)!
+
+We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudburst's Payloads electronics.
+
+<table>
+  <tr>
+    <td width="25%">
+      <img src="Photos/EasyEDA-logo.jpg" style="width: 100%;">
+    </td>
+    <td width="75%">
+      <img src="Photos/JLCPCB-logo.png" style="width: 100%;">
+    </td>
+  </tr>
+</table>
+
 
 
 ## Build
