@@ -6,17 +6,18 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 
 <table>
   <tr>
-    <td width="33.33%">
-      <img src="Photos/Payloads-Bay.jpg" style="width: 100%;">
+    <td width="33.33%" align="center">
+      <img src="Photos/Payloads-Bay.jpg" height="400">
     </td>
-    <td width="33.33%">
-      <img src="Photos/Payloads-LoRa-Carrier.jpg" style="width: 100%;">
+    <td width="33.33%" align="center">
+      <img src="Photos/Payloads-LoRa-Carrier.jpg" height="400">
     </td>
-    <td width="33.33%">
-      <img src="Photos/Payloads-PCB.jpg" style="width: 100%;">
+    <td width="33.33%" align="center">
+      <img src="Photos/Payloads-PCB.jpg" height="400">
     </td>
   </tr>
 </table>
+
 
 
 
@@ -26,11 +27,11 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
 
 <table>
   <tr>
-    <td width="33.33%">
-      <img src="Photos/EasyEDA-logo.png" style="width: 100%; max-height: 200px;">
+    <td width="25%">
+      <img src="Photos/EasyEDA-logo.png" style="width: 100%;">
     </td>
-    <td width="66.67%">
-      <img src="Photos/JLCPCB-logo.png" style="width: 100%; max-height: 200px;">
+    <td width="75">
+      <img src="Photos/JLCPCB-logo.png" style="width: 100%;">
     </td>
   </tr>
 </table>
