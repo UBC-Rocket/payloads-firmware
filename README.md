@@ -6,36 +6,22 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 
 <table>
   <tr>
-<<<<<<< HEAD
-    <td rowspan="2" width="50%">
-      <img src="Photos/Payloads-Bay.jpg" width="100%">
+    <td rowspan="2" width="50%" align="center">
+      <img src="Photos/Payloads-Bay.jpg" height="500">
     </td>
-    <td width="50%">
-      <img src="Photos/Payloads-LoRa-Carrier.jpg" width="100%">
+    <td width="50%" align="center">
+      <img src="Photos/Payloads-LoRa-Carrier.jpg" height="250">
     </td>
   </tr>
   <tr>
-    <td width="50%">
-      <img src="Photos/Payloads-PCB.jpg" width="100%">
-=======
-    <td width="33.33%" align="center">
-      <img src="Photos/Payloads-Bay.jpg" height="400">
-    </td>
-    <td width="33.33%" align="center">
-      <img src="Photos/Payloads-LoRa-Carrier.jpg" height="400">
-    </td>
-    <td width="33.33%" align="center">
-      <img src="Photos/Payloads-PCB.jpg" height="400">
->>>>>>> ff8f0737e89be4111a7ecad1c492502104d46834
+    <td width="50%" align="center">
+      <img src="Photos/Payloads-PCB.jpg" height="250">
     </td>
   </tr>
 </table>
 
-<<<<<<< HEAD
-=======
 
 
->>>>>>> ff8f0737e89be4111a7ecad1c492502104d46834
 
 The boards for this design were made possible with the support of [JLCPCB](https://jlcpcb.com/) and [EasyEDA](https://easyeda.com/). Their excellent turnaround times and affordable manufacturing costs made it possible to quickly iterate on these designs and produce high-quality PCBs in time for [Launch Canada 2026](https://www.launchcanada.org/)!
 
@@ -43,16 +29,6 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
 
 <table>
   <tr>
-<<<<<<< HEAD
-    <td width="33.33%">
-      <img src="Photos/EasyEDA-logo.png" width="100%">
-    </td>
-    <td width="66.67%">
-      <img src="Photos/JLCPCB-logo.png" width="100%">
-    </td>
-  </tr>
-</table>
-=======
     <td width="25%">
       <img src="Photos/EasyEDA-logo.jpg" style="width: 100%;">
     </td>
@@ -63,7 +39,6 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
 </table>
 
 
->>>>>>> ff8f0737e89be4111a7ecad1c492502104d46834
 
 ## Build
 
