@@ -4,7 +4,7 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 
 ## PCB Fabrication
 
-![Payloads-Bay](Photos/Payloads-Bay.jpg
+![Payloads-Bay](Photos/Payloads-Bay.jpg)
 ![Paylods-PCB](Photos/Payloads-PCB.jpg)
 ![Paylods-LoRa-Carrier](Photos/Payloads-LoRa-Carrier.jpg)
 
