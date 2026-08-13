@@ -7,18 +7,19 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 <table>
   <tr>
     <td rowspan="2" width="50%">
-      <img src="Photos/Payloads-Bay.jpg" width="100%">
+      <img src="Photos/Payloads-Bay.jpg" style="width: 100%; max-height: 500px; object-fit: contain;">
     </td>
     <td width="50%">
-      <img src="Photos/Payloads-LoRa-Carrier.jpg" width="100%">
+      <img src="Photos/Payloads-LoRa-Carrier.jpg" style="width: 100%; max-height: 250px; object-fit: contain;">
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="Photos/Payloads-PCB.jpg" width="100%">
+      <img src="Photos/Payloads-PCB.jpg" style="width: 100%; max-height: 250px; object-fit: contain;">
     </td>
   </tr>
 </table>
+
 
 
 The boards for this design were made possible with the support of [JLCPCB](https://jlcpcb.com/) and [EasyEDA](https://easyeda.com/). Their excellent turnaround times and affordable manufacturing costs made it possible to quickly iterate on these designs and produce high-quality PCBs in time for [Launch Canada 2026](https://www.launchcanada.org/)!
@@ -28,13 +29,14 @@ We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudb
 <table>
   <tr>
     <td width="33.33%">
-      <img src="Photos/EasyEDA-logo.png" width="100%">
+      <img src="Photos/EasyEDA-logo.png" style="width: 100%; max-height: 400px; object-fit: contain;">
     </td>
     <td width="66.67%">
-      <img src="Photos/JLCPCB-logo.png" width="100%">
+      <img src="Photos/JLCPCB-logo.png" style="width: 100%; max-height: 400px; object-fit: contain;">
     </td>
   </tr>
 </table>
+
 
 
 ## Build
