@@ -4,15 +4,15 @@ Firmware for UBC Rocket's Cloudburst payload on the STM32G0B1CCT6. It reads from
 
 ## PCB Fabrication
 
-[Payloads-Bay](Photos/Payloads-Bay.jpg)
-[Paylods-PCB](Photos/Payloads-PCB.jpg)
-[Paylods-LoRa-Carrier](Photos/Payloads-LoRa-Carrier.jpg)
+![Payloads-Bay](Photos/Payloads-Bay.jpg
+![Paylods-PCB](Photos/Payloads-PCB.jpg)
+![Paylods-LoRa-Carrier](Photos/Payloads-LoRa-Carrier.jpg)
 
 The boards for this design were made possible with the support of [JLCPCB](https://jlcpcb.com/) and [EasyEDA](https://easyeda.com/). Their excellent turnaround times and affordable manufacturing costs made it possible to quickly iterate on these designs and produce high-quality PCBs in time for [Launch Canada 2026](https://www.launchcanada.org/)!
 
 We're incredibly grateful to JLCPCB and EasyEDA for their support towards Cloudburst's Payloads electronics.
 
-[EasyEDA-Logo](Photos/EasyEDA-logo.png)      [JLCPCB-Logo](Photos/JLCPCB-logo.png)
+![EasyEDA-Logo](Photos/EasyEDA-logo.png)                              ![JLCPCB-Logo](Photos/JLCPCB-logo.png)
 
 ## Build
 
