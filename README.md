@@ -115,6 +115,10 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   module-reported receive error, it immediately opens a new receive session. It
   does not transmit periodic traffic. A received `PING` is the only link-check
   request and causes a one-shot `PONG` reply after a short turnaround delay.
+- Every transmitted raw-LoRa text payload starts with the station identifier
+  `VA7FAH ` (including the trailing separator), so commands and replies appear
+  on air as, for example, `VA7FAH PING` and `VA7FAH PONG`. The serial command
+  interface continues to accept the original command text without the prefix.
 - USART1 on PA9/PA10 is the 115200-baud debug console. Its TX output reports
   the configured radio profile at boot, radio state and receive counters once
   per second, and an immediate `EVENT ... applied` line when an output command
@@ -140,7 +144,7 @@ ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
 `range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. Between two-second
 receive slices the bridge converts the command to a raw-LoRa hex payload. Output
-commands are transmitted three times with the same
+commands are prefixed with `VA7FAH ` and transmitted three times with the same
 SF12/BW125/CR4/5/sync-0x34
 profile; `BUMP` and `PING` are transmitted once. The bridge waits for each `radio_tx_ok`
 and returns to receive mode. Repetition gives each idempotent output command extra

@@ -386,24 +386,31 @@ static void handle_complete_line(rn2483_t *device,
         uint32_t bump_seconds = 0U;
         const bool payload_valid =
             decode_radio_payload(line, payload, sizeof(payload));
-        if (payload_valid && strcmp(payload, "PUMP_ON") == 0) {
+        const char *command = payload;
+        if (payload_valid &&
+            strncmp(command,
+                    RN2483_PACKET_PREFIX,
+                    sizeof(RN2483_PACKET_PREFIX) - 1U) == 0) {
+            command += sizeof(RN2483_PACKET_PREFIX) - 1U;
+        }
+        if (payload_valid && strcmp(command, "PUMP_ON") == 0) {
             device->pending_event = RN2483_EVENT_PUMP_ON;
             device->stats.valid_commands++;
-        } else if (payload_valid && strcmp(payload, "PUMP_OFF") == 0) {
+        } else if (payload_valid && strcmp(command, "PUMP_OFF") == 0) {
             device->pending_event = RN2483_EVENT_PUMP_OFF;
             device->stats.valid_commands++;
-        } else if (payload_valid && strcmp(payload, "LED_ON") == 0) {
+        } else if (payload_valid && strcmp(command, "LED_ON") == 0) {
             device->pending_event = RN2483_EVENT_LED_ON;
             device->stats.valid_commands++;
-        } else if (payload_valid && strcmp(payload, "LED_OFF") == 0) {
+        } else if (payload_valid && strcmp(command, "LED_OFF") == 0) {
             device->pending_event = RN2483_EVENT_LED_OFF;
             device->stats.valid_commands++;
         } else if (payload_valid &&
-                   parse_bump_seconds(payload, &bump_seconds)) {
+                   parse_bump_seconds(command, &bump_seconds)) {
             device->pending_bump_seconds = bump_seconds;
             device->pending_event = RN2483_EVENT_BUMP;
             device->stats.valid_commands++;
-        } else if (payload_valid && strcmp(payload, "PING") == 0) {
+        } else if (payload_valid && strcmp(command, "PING") == 0) {
             device->pending_event = RN2483_EVENT_PING;
             device->stats.valid_commands++;
         } else if (strncmp(line, "radio_rx ", 9U) == 0) {
@@ -617,7 +624,7 @@ bool rn2483_is_ready(const rn2483_t *device)
 bool rn2483_send_text(rn2483_t *device, const char *payload)
 {
     static const char hex_digits[] = "0123456789ABCDEF";
-    static const char prefix[] = "radio tx ";
+    static const char command_prefix[] = "radio tx ";
 
     if (device == NULL || payload == NULL || payload[0] == '\0' ||
         device->transmit_queued) {
@@ -635,15 +642,24 @@ bool rn2483_send_text(rn2483_t *device, const char *payload)
     }
 
     const size_t payload_length = strlen(payload);
+    const size_t station_prefix_length = sizeof(RN2483_PACKET_PREFIX) - 1U;
+    const size_t transmitted_length = station_prefix_length + payload_length;
     const size_t command_length =
-        (sizeof(prefix) - 1U) + (payload_length * 2U) + 2U;
+        (sizeof(command_prefix) - 1U) + (transmitted_length * 2U) + 2U;
     if (command_length >= sizeof(device->transmit_command)) {
         return false;
     }
 
     size_t position = 0U;
-    memcpy(device->transmit_command, prefix, sizeof(prefix) - 1U);
-    position += sizeof(prefix) - 1U;
+    memcpy(device->transmit_command,
+           command_prefix,
+           sizeof(command_prefix) - 1U);
+    position += sizeof(command_prefix) - 1U;
+    for (size_t index = 0U; index < station_prefix_length; index++) {
+        const uint8_t byte = (uint8_t)RN2483_PACKET_PREFIX[index];
+        device->transmit_command[position++] = hex_digits[byte >> 4U];
+        device->transmit_command[position++] = hex_digits[byte & 0x0FU];
+    }
     for (size_t index = 0U; index < payload_length; index++) {
         const uint8_t byte = (uint8_t)payload[index];
         device->transmit_command[position++] = hex_digits[byte >> 4U];

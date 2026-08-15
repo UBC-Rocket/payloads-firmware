@@ -18,6 +18,8 @@ extern "C" {
 #define RN2483_LINE_SIZE 96U
 #define RN2483_COMMAND_SIZE 96U
 #define RN2483_BUMP_MAX_SECONDS 3600U
+#define RN2483_STATION_CALLSIGN "VA7FAH"
+#define RN2483_PACKET_PREFIX RN2483_STATION_CALLSIGN " "
 
 typedef enum {
     RN2483_OK = 0,
@@ -126,6 +128,7 @@ bool rn2483_is_ready(const rn2483_t *device);
 /**
  * @brief Queue one ASCII payload for raw-LoRa transmission.
  *
+ * RN2483_PACKET_PREFIX is prepended to every over-the-air payload.
  * The request may be queued while the driver configures or when the module is
  * idle after a received packet. The driver automatically returns to receive
  * mode after transmission.

@@ -142,12 +142,13 @@ static void test_configuration_and_commands(void)
     configure_to_listening(&device, &fake, &now_ms);
 
     /* RN2483 1.0.4 places two spaces between radio_rx and the payload. */
-    feed_line(&device, "radio_rx  50554D505F4F4E");
+    feed_line(&device, "radio_rx  5641374641482050554D505F4F4E");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_ON);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
-    CHECK(strcmp(device.last_line, "radio_rx  50554D505F4F4E") == 0);
+    CHECK(strcmp(device.last_line,
+                 "radio_rx  5641374641482050554D505F4F4E") == 0);
     CHECK(strcmp(fake.last_command, "radio rx 0\r\n") == 0);
     feed_line(&device, "ok");
     now_ms++;
@@ -246,7 +247,8 @@ static void test_configuration_and_commands(void)
     CHECK(rn2483_send_text(&device, "PONG"));
 
     rn2483_process(&device, now_ms);
-    CHECK(strcmp(fake.last_command, "radio tx 504F4E47\r\n") == 0);
+    CHECK(strcmp(fake.last_command,
+                 "radio tx 56413746414820504F4E47\r\n") == 0);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
@@ -327,7 +329,7 @@ static void test_text_transmit_returns_to_receive(void)
     now_ms++;
     rn2483_process(&device, now_ms);
     check_command(&device, &fake, &now_ms,
-                  "radio tx 50494E472030\r\n", "ok");
+                  "radio tx 5641374641482050494E472030\r\n", "ok");
     CHECK(device.phase == RN2483_PHASE_WAIT_TRANSMIT);
 
     feed_line(&device, "radio_tx_ok");
@@ -364,7 +366,7 @@ static void test_startup_text_transmit_precedes_receive(void)
     configure_to_listening(&device, &fake, &now_ms);
     CHECK(device.phase == RN2483_PHASE_TRANSMIT_COMMAND);
     CHECK(strcmp(fake.last_command,
-                 "radio tx 50494E472030\r\n") == 0);
+                 "radio tx 5641374641482050494E472030\r\n") == 0);
 
     feed_line(&device, "ok");
     now_ms++;

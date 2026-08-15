@@ -4,6 +4,8 @@ This is the `range-test-rx` raw-LoRa bridge port for the custom
 STM32F103C8T6 board. It keeps the original 433.575 MHz,
 SF12/BW125/CR4/5, CRC-on, sync-`0x34` radio profile and accepts
 `PUMP_ON`, `PUMP_OFF`, `BUMP 1-3600`, `LED_ON`, `LED_OFF`, and `PING`.
+Every over-the-air command is prefixed with `VA7FAH `; the host serial
+interface continues to accept the command text without that prefix.
 
 ## Wiring
 

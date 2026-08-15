@@ -35,6 +35,7 @@
 #define RN2483_BAUDRATE      57600U
 #define RN2483_RESP_TIMEOUT  1000U   /* ms, for the immediate command response */
 #define RN2483_TX_TIMEOUT    10000U  /* ms, for "radio_tx_ok" (SF12 frames are slow) */
+#define RADIO_PACKET_PREFIX  "VA7FAH "
 /* Pause between frames. Observed message spacing is this plus the frame's
    airtime (~1.5 s at SF12), so 1200 ms lands at ~2.5-3 s between messages. */
 #define TX_PERIOD_MS         1200U
@@ -220,11 +221,22 @@ static HAL_StatusTypeDef RN2483_RadioTx(const char *payload)
   char cmd[96] = "radio tx ";
   char resp[32];
   size_t pos = strlen(cmd);
-  size_t i;
+  const size_t station_prefix_length = strlen(RADIO_PACKET_PREFIX);
+  const size_t payload_length = strlen(payload);
+  const size_t transmitted_length = station_prefix_length + payload_length;
 
-  for (i = 0; payload[i] != '\0' && pos < sizeof(cmd) - 3U; i++)
+  if (payload_length == 0U ||
+      pos + (transmitted_length * 2U) >= sizeof(cmd))
   {
-    pos += (size_t)sprintf(&cmd[pos], "%02X", (uint8_t)payload[i]);
+    return HAL_ERROR;
+  }
+
+  for (size_t i = 0U; i < transmitted_length; i++)
+  {
+    const uint8_t byte = i < station_prefix_length
+                             ? (uint8_t)RADIO_PACKET_PREFIX[i]
+                             : (uint8_t)payload[i - station_prefix_length];
+    pos += (size_t)sprintf(&cmd[pos], "%02X", byte);
   }
 
   if (RN2483_Command(cmd, resp, sizeof(resp), RN2483_RESP_TIMEOUT) != HAL_OK ||

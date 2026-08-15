@@ -44,6 +44,7 @@
 #define ONE_SHOT_COMMAND_REPEATS 1U
 #define PING_REPLY_TIMEOUT_MS 12000U
 #define BUMP_MAX_SECONDS     3600U
+#define RADIO_PACKET_PREFIX  "VA7FAH "
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -185,8 +186,10 @@ static HAL_StatusTypeDef RN2483_TransmitText(const char *text,
 {
   static const char hex_digits[] = "0123456789ABCDEF";
   char command[80] = "radio tx ";
-  const size_t prefix_length = strlen(command);
+  const size_t command_prefix_length = strlen(command);
+  const size_t station_prefix_length = strlen(RADIO_PACKET_PREFIX);
   const size_t text_length = strlen(text);
+  const size_t payload_length = station_prefix_length + text_length;
 
   if (detail == NULL || detail_size == 0U)
   {
@@ -195,19 +198,22 @@ static HAL_StatusTypeDef RN2483_TransmitText(const char *text,
   detail[0] = '\0';
 
   if (text_length == 0U ||
-      prefix_length + (text_length * 2U) >= sizeof(command))
+      command_prefix_length + (payload_length * 2U) >= sizeof(command))
   {
     snprintf(detail, detail_size, "payload_too_long");
     return HAL_ERROR;
   }
 
-  for (size_t i = 0; i < text_length; i++)
+  for (size_t i = 0U; i < payload_length; i++)
   {
-    const uint8_t byte = (uint8_t)text[i];
-    command[prefix_length + (i * 2U)] = hex_digits[byte >> 4];
-    command[prefix_length + (i * 2U) + 1U] = hex_digits[byte & 0x0FU];
+    const uint8_t byte = i < station_prefix_length
+                             ? (uint8_t)RADIO_PACKET_PREFIX[i]
+                             : (uint8_t)text[i - station_prefix_length];
+    command[command_prefix_length + (i * 2U)] = hex_digits[byte >> 4];
+    command[command_prefix_length + (i * 2U) + 1U] =
+        hex_digits[byte & 0x0FU];
   }
-  command[prefix_length + (text_length * 2U)] = '\0';
+  command[command_prefix_length + (payload_length * 2U)] = '\0';
 
   if (RN2483_Command(command, detail, detail_size,
                      RN2483_RESP_TIMEOUT) != HAL_OK)
@@ -718,7 +724,14 @@ int main(void)
       snprintf(out, sizeof(out), "RX %lu: \"%s\" (snr %s, rssi %s)",
                (unsigned long)rx_count, text, snr, rssi);
       Debug_Log(out);
-      if (strcmp(text, "PONG") == 0)
+      const char *message = text;
+      if (strncmp(message,
+                  RADIO_PACKET_PREFIX,
+                  sizeof(RADIO_PACKET_PREFIX) - 1U) == 0)
+      {
+        message += sizeof(RADIO_PACKET_PREFIX) - 1U;
+      }
+      if (strcmp(message, "PONG") == 0)
       {
         if (ping_waiting)
         {
