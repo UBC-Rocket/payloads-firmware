@@ -1992,7 +1992,7 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
                 0x08000000                g_pfnVectors
                 0x0800010c                        . = ALIGN (0x4)
 
-.text           0x0800010c     0x3c78
+.text           0x0800010c     0x3d94
                 0x0800010c                        . = ALIGN (0x4)
  *(.text)
  .text          0x0800010c       0x14 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strcmp.o)
@@ -2047,379 +2047,384 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
  .text.RN2483_CommandChecked
                 0x08000640       0x50 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.RN2483_TransmitText
-                0x08000690      0x17c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08000690      0x1a4 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.Serial_Command_Init
-                0x0800080c       0x70 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08000834       0x70 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.Serial_TakeCommand
-                0x0800087c       0xc4 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x080008a4       0xc4 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .text.Parse_Bump_Command
+                0x08000968       0xa4 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.HAL_UART_RxCpltCallback
-                0x08000940      0x160 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                0x08000940                HAL_UART_RxCpltCallback
+                0x08000a0c      0x160 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08000a0c                HAL_UART_RxCpltCallback
  .text.HAL_UART_ErrorCallback
-                0x08000aa0       0x2c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                0x08000aa0                HAL_UART_ErrorCallback
+                0x08000b6c       0x2c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08000b6c                HAL_UART_ErrorCallback
  .text.Hex_Nibble
-                0x08000acc       0x4e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- *fill*         0x08000b1a        0x2 
- .text.main     0x08000b1c      0x91c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                0x08000b1c                main
+                0x08000b98       0x4e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ *fill*         0x08000be6        0x2 
+ .text.main     0x08000be8      0x96c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08000be8                main
  .text.SystemClock_Config
-                0x08001438       0x82 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                0x08001438                SystemClock_Config
- *fill*         0x080014ba        0x2 
+                0x08001554       0x82 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08001554                SystemClock_Config
+ *fill*         0x080015d6        0x2 
  .text.MX_USART2_UART_Init
-                0x080014bc       0x54 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x080015d8       0x54 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.MX_GPIO_Init
-                0x08001510       0xdc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x0800162c       0xdc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .text.Error_Handler
-                0x080015ec        0xc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                0x080015ec                Error_Handler
+                0x08001708        0xc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x08001708                Error_Handler
  .text.NMI_Handler
-                0x080015f8        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x080015f8                NMI_Handler
+                0x08001714        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001714                NMI_Handler
  .text.HardFault_Handler
-                0x08001600        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001600                HardFault_Handler
+                0x0800171c        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x0800171c                HardFault_Handler
  .text.MemManage_Handler
-                0x08001608        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001608                MemManage_Handler
+                0x08001724        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001724                MemManage_Handler
  .text.BusFault_Handler
-                0x08001610        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001610                BusFault_Handler
+                0x0800172c        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x0800172c                BusFault_Handler
  .text.UsageFault_Handler
-                0x08001618        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001618                UsageFault_Handler
+                0x08001734        0x8 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001734                UsageFault_Handler
  .text.SVC_Handler
-                0x08001620        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001620                SVC_Handler
+                0x0800173c        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x0800173c                SVC_Handler
  .text.DebugMon_Handler
-                0x0800162c        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x0800162c                DebugMon_Handler
+                0x08001748        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001748                DebugMon_Handler
  .text.PendSV_Handler
-                0x08001638        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001638                PendSV_Handler
+                0x08001754        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001754                PendSV_Handler
  .text.SysTick_Handler
-                0x08001644        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001644                SysTick_Handler
+                0x08001760        0xc CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001760                SysTick_Handler
  .text.USART2_IRQHandler
-                0x08001650       0x14 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001650                USART2_IRQHandler
+                0x0800176c       0x14 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x0800176c                USART2_IRQHandler
  .text.EXTI15_10_IRQHandler
-                0x08001664       0x10 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
-                0x08001664                EXTI15_10_IRQHandler
+                0x08001780       0x10 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x08001780                EXTI15_10_IRQHandler
  .text.HAL_MspInit
-                0x08001674       0x64 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
-                0x08001674                HAL_MspInit
+                0x08001790       0x64 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+                0x08001790                HAL_MspInit
  .text.HAL_UART_MspInit
-                0x080016d8       0xa4 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
-                0x080016d8                HAL_UART_MspInit
+                0x080017f4       0xa4 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+                0x080017f4                HAL_UART_MspInit
  .text.SystemInit
-                0x0800177c        0xc CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
-                0x0800177c                SystemInit
+                0x08001898        0xc CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+                0x08001898                SystemInit
  .text.HAL_Init
-                0x08001788       0x2c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
-                0x08001788                HAL_Init
+                0x080018a4       0x2c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x080018a4                HAL_Init
  .text.HAL_InitTick
-                0x080017b4       0x60 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
-                0x080017b4                HAL_InitTick
+                0x080018d0       0x60 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x080018d0                HAL_InitTick
  .text.HAL_IncTick
-                0x08001814       0x24 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
-                0x08001814                HAL_IncTick
+                0x08001930       0x24 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x08001930                HAL_IncTick
  .text.HAL_GetTick
-                0x08001838       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
-                0x08001838                HAL_GetTick
+                0x08001954       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x08001954                HAL_GetTick
  .text.HAL_Delay
-                0x0800184c       0x48 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
-                0x0800184c                HAL_Delay
+                0x08001968       0x48 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x08001968                HAL_Delay
  .text.HAL_RCC_OscConfig
-                0x08001894      0x504 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08001894                HAL_RCC_OscConfig
+                0x080019b0      0x504 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x080019b0                HAL_RCC_OscConfig
  .text.HAL_RCC_ClockConfig
-                0x08001d98      0x1d4 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08001d98                HAL_RCC_ClockConfig
+                0x08001eb4      0x1d4 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08001eb4                HAL_RCC_ClockConfig
  .text.HAL_RCC_GetSysClockFreq
-                0x08001f6c       0xa8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08001f6c                HAL_RCC_GetSysClockFreq
+                0x08002088       0xa8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08002088                HAL_RCC_GetSysClockFreq
  .text.HAL_RCC_GetHCLKFreq
-                0x08002014       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08002014                HAL_RCC_GetHCLKFreq
+                0x08002130       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08002130                HAL_RCC_GetHCLKFreq
  .text.HAL_RCC_GetPCLK1Freq
-                0x08002028       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08002028                HAL_RCC_GetPCLK1Freq
+                0x08002144       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08002144                HAL_RCC_GetPCLK1Freq
  .text.HAL_RCC_GetPCLK2Freq
-                0x08002050       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
-                0x08002050                HAL_RCC_GetPCLK2Freq
+                0x0800216c       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x0800216c                HAL_RCC_GetPCLK2Freq
  .text.RCC_Delay
-                0x08002078       0x3c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08002194       0x3c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
  .text.HAL_GPIO_Init
-                0x080020b4      0x2dc CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
-                0x080020b4                HAL_GPIO_Init
+                0x080021d0      0x2dc CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x080021d0                HAL_GPIO_Init
  .text.HAL_GPIO_WritePin
-                0x08002390       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
-                0x08002390                HAL_GPIO_WritePin
+                0x080024ac       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x080024ac                HAL_GPIO_WritePin
  .text.HAL_GPIO_TogglePin
-                0x080023c0       0x32 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
-                0x080023c0                HAL_GPIO_TogglePin
- *fill*         0x080023f2        0x2 
+                0x080024dc       0x32 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x080024dc                HAL_GPIO_TogglePin
+ *fill*         0x0800250e        0x2 
  .text.HAL_GPIO_EXTI_IRQHandler
-                0x080023f4       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
-                0x080023f4                HAL_GPIO_EXTI_IRQHandler
+                0x08002510       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x08002510                HAL_GPIO_EXTI_IRQHandler
  .text.HAL_GPIO_EXTI_Callback
-                0x08002424       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
-                0x08002424                HAL_GPIO_EXTI_Callback
+                0x08002540       0x14 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x08002540                HAL_GPIO_EXTI_Callback
  .text.HAL_DMA_Abort
-                0x08002438       0x76 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
-                0x08002438                HAL_DMA_Abort
- *fill*         0x080024ae        0x2 
+                0x08002554       0x76 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+                0x08002554                HAL_DMA_Abort
+ *fill*         0x080025ca        0x2 
  .text.HAL_DMA_Abort_IT
-                0x080024b0       0xf0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
-                0x080024b0                HAL_DMA_Abort_IT
+                0x080025cc       0xf0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+                0x080025cc                HAL_DMA_Abort_IT
  .text.__NVIC_SetPriorityGrouping
-                0x080025a0       0x48 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x080026bc       0x48 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .text.__NVIC_GetPriorityGrouping
-                0x080025e8       0x1c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x08002704       0x1c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .text.__NVIC_EnableIRQ
-                0x08002604       0x38 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x08002720       0x38 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .text.__NVIC_SetPriority
-                0x0800263c       0x54 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x08002758       0x54 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .text.NVIC_EncodePriority
-                0x08002690       0x6e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- *fill*         0x080026fe        0x2 
+                0x080027ac       0x6e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ *fill*         0x0800281a        0x2 
  .text.SysTick_Config
-                0x08002700       0x44 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x0800281c       0x44 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .text.HAL_NVIC_SetPriorityGrouping
-                0x08002744       0x16 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
-                0x08002744                HAL_NVIC_SetPriorityGrouping
+                0x08002860       0x16 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x08002860                HAL_NVIC_SetPriorityGrouping
  .text.HAL_NVIC_SetPriority
-                0x0800275a       0x38 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
-                0x0800275a                HAL_NVIC_SetPriority
+                0x08002876       0x38 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x08002876                HAL_NVIC_SetPriority
  .text.HAL_NVIC_EnableIRQ
-                0x08002792       0x1c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
-                0x08002792                HAL_NVIC_EnableIRQ
+                0x080028ae       0x1c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x080028ae                HAL_NVIC_EnableIRQ
  .text.HAL_SYSTICK_Config
-                0x080027ae       0x18 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
-                0x080027ae                HAL_SYSTICK_Config
+                0x080028ca       0x18 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x080028ca                HAL_SYSTICK_Config
  .text.HAL_UART_Init
-                0x080027c6       0xa0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x080027c6                HAL_UART_Init
+                0x080028e2       0xa0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x080028e2                HAL_UART_Init
  .text.HAL_UART_Transmit
-                0x08002866      0x116 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x08002866                HAL_UART_Transmit
+                0x08002982      0x116 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08002982                HAL_UART_Transmit
  .text.HAL_UART_Receive
-                0x0800297c      0x12e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x0800297c                HAL_UART_Receive
+                0x08002a98      0x12e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08002a98                HAL_UART_Receive
  .text.HAL_UART_Receive_IT
-                0x08002aaa       0x4a CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x08002aaa                HAL_UART_Receive_IT
+                0x08002bc6       0x4a CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08002bc6                HAL_UART_Receive_IT
  .text.HAL_UART_IRQHandler
-                0x08002af4      0x520 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x08002af4                HAL_UART_IRQHandler
+                0x08002c10      0x520 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08002c10                HAL_UART_IRQHandler
  .text.HAL_UART_TxCpltCallback
-                0x08003014       0x12 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x08003014                HAL_UART_TxCpltCallback
+                0x08003130       0x12 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003130                HAL_UART_TxCpltCallback
  .text.HAL_UARTEx_RxEventCallback
-                0x08003026       0x16 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x08003026                HAL_UARTEx_RxEventCallback
+                0x08003142       0x16 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003142                HAL_UARTEx_RxEventCallback
  .text.UART_WaitOnFlagUntilTimeout
-                0x0800303c       0xb2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003158       0xb2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.UART_Start_Receive_IT
-                0x080030ee       0x72 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
-                0x080030ee                UART_Start_Receive_IT
+                0x0800320a       0x72 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x0800320a                UART_Start_Receive_IT
  .text.UART_EndRxTransfer
-                0x08003160       0xc4 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x0800327c       0xc4 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.UART_DMAAbortOnError
-                0x08003224       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003340       0x28 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.UART_Transmit_IT
-                0x0800324c       0x9e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003368       0x9e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.UART_EndTransmit_IT
-                0x080032ea       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x08003406       0x30 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.UART_Receive_IT
-                0x0800331a      0x17c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
- *fill*         0x08003496        0x2 
+                0x08003436      0x17c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ *fill*         0x080035b2        0x2 
  .text.UART_SetConfig
-                0x08003498      0x11c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x080035b4      0x11c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .text.Reset_Handler
-                0x080035b4       0x48 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
-                0x080035b4                Reset_Handler
+                0x080036d0       0x48 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+                0x080036d0                Reset_Handler
  .text.Default_Handler
-                0x080035fc        0x2 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
-                0x080035fc                RTC_Alarm_IRQHandler
-                0x080035fc                EXTI2_IRQHandler
-                0x080035fc                TIM1_CC_IRQHandler
-                0x080035fc                PVD_IRQHandler
-                0x080035fc                EXTI3_IRQHandler
-                0x080035fc                EXTI0_IRQHandler
-                0x080035fc                I2C2_EV_IRQHandler
-                0x080035fc                ADC1_2_IRQHandler
-                0x080035fc                SPI1_IRQHandler
-                0x080035fc                TAMPER_IRQHandler
-                0x080035fc                DMA1_Channel4_IRQHandler
-                0x080035fc                USART3_IRQHandler
-                0x080035fc                RTC_IRQHandler
-                0x080035fc                DMA1_Channel7_IRQHandler
-                0x080035fc                CAN1_RX1_IRQHandler
-                0x080035fc                TIM4_IRQHandler
-                0x080035fc                I2C1_EV_IRQHandler
-                0x080035fc                DMA1_Channel6_IRQHandler
-                0x080035fc                TIM3_IRQHandler
-                0x080035fc                RCC_IRQHandler
-                0x080035fc                TIM1_TRG_COM_IRQHandler
-                0x080035fc                DMA1_Channel1_IRQHandler
-                0x080035fc                Default_Handler
-                0x080035fc                EXTI9_5_IRQHandler
-                0x080035fc                SPI2_IRQHandler
-                0x080035fc                DMA1_Channel5_IRQHandler
-                0x080035fc                EXTI4_IRQHandler
-                0x080035fc                USB_LP_CAN1_RX0_IRQHandler
-                0x080035fc                USB_HP_CAN1_TX_IRQHandler
-                0x080035fc                DMA1_Channel3_IRQHandler
-                0x080035fc                TIM1_UP_IRQHandler
-                0x080035fc                WWDG_IRQHandler
-                0x080035fc                TIM2_IRQHandler
-                0x080035fc                TIM1_BRK_IRQHandler
-                0x080035fc                EXTI1_IRQHandler
-                0x080035fc                I2C2_ER_IRQHandler
-                0x080035fc                DMA1_Channel2_IRQHandler
-                0x080035fc                CAN1_SCE_IRQHandler
-                0x080035fc                FLASH_IRQHandler
-                0x080035fc                USART1_IRQHandler
-                0x080035fc                I2C1_ER_IRQHandler
-                0x080035fc                USBWakeUp_IRQHandler
- *fill*         0x080035fe        0x2 
+                0x08003718        0x2 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+                0x08003718                RTC_Alarm_IRQHandler
+                0x08003718                EXTI2_IRQHandler
+                0x08003718                TIM1_CC_IRQHandler
+                0x08003718                PVD_IRQHandler
+                0x08003718                EXTI3_IRQHandler
+                0x08003718                EXTI0_IRQHandler
+                0x08003718                I2C2_EV_IRQHandler
+                0x08003718                ADC1_2_IRQHandler
+                0x08003718                SPI1_IRQHandler
+                0x08003718                TAMPER_IRQHandler
+                0x08003718                DMA1_Channel4_IRQHandler
+                0x08003718                USART3_IRQHandler
+                0x08003718                RTC_IRQHandler
+                0x08003718                DMA1_Channel7_IRQHandler
+                0x08003718                CAN1_RX1_IRQHandler
+                0x08003718                TIM4_IRQHandler
+                0x08003718                I2C1_EV_IRQHandler
+                0x08003718                DMA1_Channel6_IRQHandler
+                0x08003718                TIM3_IRQHandler
+                0x08003718                RCC_IRQHandler
+                0x08003718                TIM1_TRG_COM_IRQHandler
+                0x08003718                DMA1_Channel1_IRQHandler
+                0x08003718                Default_Handler
+                0x08003718                EXTI9_5_IRQHandler
+                0x08003718                SPI2_IRQHandler
+                0x08003718                DMA1_Channel5_IRQHandler
+                0x08003718                EXTI4_IRQHandler
+                0x08003718                USB_LP_CAN1_RX0_IRQHandler
+                0x08003718                USB_HP_CAN1_TX_IRQHandler
+                0x08003718                DMA1_Channel3_IRQHandler
+                0x08003718                TIM1_UP_IRQHandler
+                0x08003718                WWDG_IRQHandler
+                0x08003718                TIM2_IRQHandler
+                0x08003718                TIM1_BRK_IRQHandler
+                0x08003718                EXTI1_IRQHandler
+                0x08003718                I2C2_ER_IRQHandler
+                0x08003718                DMA1_Channel2_IRQHandler
+                0x08003718                CAN1_SCE_IRQHandler
+                0x08003718                FLASH_IRQHandler
+                0x08003718                USART1_IRQHandler
+                0x08003718                I2C1_ER_IRQHandler
+                0x08003718                USBWakeUp_IRQHandler
+ *fill*         0x0800371a        0x2 
  .text.snprintf
-                0x08003600       0x64 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-snprintf.o)
-                0x08003600                snprintf
-                0x08003600                sniprintf
- .text.strncmp  0x08003664       0x24 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strncmp.o)
-                0x08003664                strncmp
+                0x0800371c       0x64 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-snprintf.o)
+                0x0800371c                snprintf
+                0x0800371c                sniprintf
+ .text.strncmp  0x08003780       0x24 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strncmp.o)
+                0x08003780                strncmp
  .text.__ssputs_r
-                0x08003688       0xc0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
-                0x08003688                __ssputs_r
+                0x080037a4       0xc0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
+                0x080037a4                __ssputs_r
  .text._svfprintf_r
-                0x08003748      0x1f0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
-                0x08003748                _svfprintf_r
-                0x08003748                _svfiprintf_r
+                0x08003864      0x1f0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
+                0x08003864                _svfprintf_r
+                0x08003864                _svfiprintf_r
  .text._printf_common
-                0x08003938       0xea /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
-                0x08003938                _printf_common
- *fill*         0x08003a22        0x2 
+                0x08003a54       0xea /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
+                0x08003a54                _printf_common
+ *fill*         0x08003b3e        0x2 
  .text._printf_i
-                0x08003a24      0x254 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
-                0x08003a24                _printf_i
- .text.memmove  0x08003c78       0x32 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memmove.o)
-                0x08003c78                memmove
- .text.memchr   0x08003caa       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memchr-stub.o)
-                0x08003caa                memchr
- .text.memcpy   0x08003cc6       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memcpy-stub.o)
-                0x08003cc6                memcpy
+                0x08003b40      0x254 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
+                0x08003b40                _printf_i
+ .text.memmove  0x08003d94       0x32 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memmove.o)
+                0x08003d94                memmove
+ .text.memchr   0x08003dc6       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memchr-stub.o)
+                0x08003dc6                memchr
+ .text.memcpy   0x08003de2       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memcpy-stub.o)
+                0x08003de2                memcpy
  .text._realloc_r
-                0x08003ce2       0x5c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-reallocr.o)
-                0x08003ce2                _realloc_r
+                0x08003dfe       0x5c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-reallocr.o)
+                0x08003dfe                _realloc_r
  .text._malloc_usable_size_r
-                0x08003d3e       0x10 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-msizer.o)
-                0x08003d3e                _malloc_usable_size_r
- *fill*         0x08003d4e        0x2 
- .text._sbrk    0x08003d50       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libnosys.a(sbrk.o)
-                0x08003d50                _sbrk
+                0x08003e5a       0x10 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-msizer.o)
+                0x08003e5a                _malloc_usable_size_r
+ *fill*         0x08003e6a        0x2 
+ .text._sbrk    0x08003e6c       0x1c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libnosys.a(sbrk.o)
+                0x08003e6c                _sbrk
  *(.glue_7)
- .glue_7        0x08003d6c        0x0 linker stubs
+ .glue_7        0x08003e88        0x0 linker stubs
  *(.glue_7t)
- .glue_7t       0x08003d6c        0x0 linker stubs
+ .glue_7t       0x08003e88        0x0 linker stubs
  *(.eh_frame)
- .eh_frame      0x08003d6c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
+ .eh_frame      0x08003e88        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
  *(.init)
- .init          0x08003d6c        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crti.o
-                0x08003d6c                _init
- .init          0x08003d70        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtn.o
+ .init          0x08003e88        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crti.o
+                0x08003e88                _init
+ .init          0x08003e8c        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtn.o
  *(.fini)
- .fini          0x08003d78        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crti.o
-                0x08003d78                _fini
- .fini          0x08003d7c        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtn.o
-                0x08003d84                        . = ALIGN (0x4)
-                0x08003d84                        _etext = .
+ .fini          0x08003e94        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crti.o
+                0x08003e94                _fini
+ .fini          0x08003e98        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtn.o
+                0x08003ea0                        . = ALIGN (0x4)
+                0x08003ea0                        _etext = .
 
-.vfp11_veneer   0x08003d84        0x0
- .vfp11_veneer  0x08003d84        0x0 linker stubs
+.vfp11_veneer   0x08003ea0        0x0
+ .vfp11_veneer  0x08003ea0        0x0 linker stubs
 
-.v4_bx          0x08003d84        0x0
- .v4_bx         0x08003d84        0x0 linker stubs
+.v4_bx          0x08003ea0        0x0
+ .v4_bx         0x08003ea0        0x0 linker stubs
 
-.iplt           0x08003d84        0x0
- .iplt          0x08003d84        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
+.iplt           0x08003ea0        0x0
+ .iplt          0x08003ea0        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
 
-.rodata         0x08003d84      0x5b0
-                0x08003d84                        . = ALIGN (0x4)
+.rodata         0x08003ea0      0x5cc
+                0x08003ea0                        . = ALIGN (0x4)
  *(.rodata)
- .rodata        0x08003d84      0x53b CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .rodata        0x08003ea0      0x54f CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  *(.rodata*)
- *fill*         0x080042bf        0x1 
- .rodata.hex_digits.1
-                0x080042c0       0x11 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- *fill*         0x080042d1        0x3 
+ *fill*         0x080043ef        0x1 
+ .rodata.hex_digits.2
+                0x080043f0       0x11 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ *fill*         0x08004401        0x3 
+ .rodata.prefix.1
+                0x08004404        0x6 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ *fill*         0x0800440a        0x2 
  .rodata.AHBPrescTable
-                0x080042d4       0x10 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
-                0x080042d4                AHBPrescTable
+                0x0800440c       0x10 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+                0x0800440c                AHBPrescTable
  .rodata.APBPrescTable
-                0x080042e4        0x8 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
-                0x080042e4                APBPrescTable
+                0x0800441c        0x8 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+                0x0800441c                APBPrescTable
  .rodata.aPLLMULFactorTable.1
-                0x080042ec       0x10 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08004424       0x10 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
  .rodata.aPredivFactorTable.0
-                0x080042fc        0x2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x08004434        0x2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
  .rodata._svfprintf_r.str1.1
-                0x080042fe       0x33 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
+                0x08004436       0x33 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
                                  0x11 (size before relaxing)
  .rodata._printf_i.str1.1
-                0x08004331        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
+                0x08004469        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
                                  0x22 (size before relaxing)
-                0x08004334                        . = ALIGN (0x4)
- *fill*         0x08004331        0x3 
+                0x0800446c                        . = ALIGN (0x4)
+ *fill*         0x08004469        0x3 
 
-.ARM.extab      0x08004334        0x0
-                0x08004334                        . = ALIGN (0x4)
+.ARM.extab      0x0800446c        0x0
+                0x0800446c                        . = ALIGN (0x4)
  *(.ARM.extab* .gnu.linkonce.armextab.*)
-                0x08004334                        . = ALIGN (0x4)
+                0x0800446c                        . = ALIGN (0x4)
 
-.ARM            0x08004334        0x8
-                0x08004334                        . = ALIGN (0x4)
-                0x08004334                        __exidx_start = .
+.ARM            0x0800446c        0x8
+                0x0800446c                        . = ALIGN (0x4)
+                0x0800446c                        __exidx_start = .
  *(.ARM.exidx*)
- .ARM.exidx     0x08004334        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strcmp.o)
- .ARM.exidx     0x0800433c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strlen.o)
+ .ARM.exidx     0x0800446c        0x8 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strcmp.o)
+ .ARM.exidx     0x08004474        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strlen.o)
                                   0x8 (size before relaxing)
-                0x0800433c                        __exidx_end = .
-                0x0800433c                        . = ALIGN (0x4)
+                0x08004474                        __exidx_end = .
+                0x08004474                        . = ALIGN (0x4)
 
-.preinit_array  0x0800433c        0x0
-                0x0800433c                        . = ALIGN (0x4)
-                0x0800433c                        PROVIDE (__preinit_array_start = .)
+.preinit_array  0x08004474        0x0
+                0x08004474                        . = ALIGN (0x4)
+                0x08004474                        PROVIDE (__preinit_array_start = .)
  *(.preinit_array*)
-                0x0800433c                        PROVIDE (__preinit_array_end = .)
-                0x0800433c                        . = ALIGN (0x4)
+                0x08004474                        PROVIDE (__preinit_array_end = .)
+                0x08004474                        . = ALIGN (0x4)
 
-.init_array     0x0800433c        0x4
-                0x0800433c                        . = ALIGN (0x4)
-                0x0800433c                        PROVIDE (__init_array_start = .)
+.init_array     0x08004474        0x4
+                0x08004474                        . = ALIGN (0x4)
+                0x08004474                        PROVIDE (__init_array_start = .)
  *(SORT_BY_NAME(.init_array.*))
  *(.init_array*)
- .init_array    0x0800433c        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
-                0x08004340                        PROVIDE (__init_array_end = .)
-                0x08004340                        . = ALIGN (0x4)
+ .init_array    0x08004474        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
+                0x08004478                        PROVIDE (__init_array_end = .)
+                0x08004478                        . = ALIGN (0x4)
 
-.fini_array     0x08004340        0x4
-                0x08004340                        . = ALIGN (0x4)
+.fini_array     0x08004478        0x4
+                0x08004478                        . = ALIGN (0x4)
                 [!provide]                        PROVIDE (__fini_array_start = .)
  *(SORT_BY_NAME(.fini_array.*))
  *(.fini_array*)
- .fini_array    0x08004340        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
+ .fini_array    0x08004478        0x4 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
                 [!provide]                        PROVIDE (__fini_array_end = .)
-                0x08004344                        . = ALIGN (0x4)
-                0x08004344                        _sidata = LOADADDR (.data)
+                0x0800447c                        . = ALIGN (0x4)
+                0x0800447c                        _sidata = LOADADDR (.data)
 
-.rel.dyn        0x08004344        0x0
- .rel.iplt      0x08004344        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
+.rel.dyn        0x0800447c        0x0
+ .rel.iplt      0x0800447c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
 
-.data           0x20000000       0x5c load address 0x08004344
+.data           0x20000000       0x5c load address 0x0800447c
                 0x20000000                        . = ALIGN (0x4)
                 0x20000000                        _sdata = .
  *(.data)
@@ -2444,17 +2449,17 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
                 0x2000005c                        _edata = .
 
 .tm_clone_table
-                0x2000005c        0x0 load address 0x080043a0
+                0x2000005c        0x0 load address 0x080044d8
  .tm_clone_table
                 0x2000005c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
  .tm_clone_table
                 0x2000005c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtend.o
 
-.igot.plt       0x2000005c        0x0 load address 0x080043a0
+.igot.plt       0x2000005c        0x0 load address 0x080044d8
  .igot.plt      0x2000005c        0x0 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/crtbegin.o
                 0x2000005c                        . = ALIGN (0x4)
 
-.bss            0x2000005c      0x248 load address 0x080043a0
+.bss            0x2000005c      0x248 load address 0x080044d8
                 0x2000005c                        _sbss = .
                 0x2000005c                        __bss_start__ = _sbss
  *(.bss)
@@ -2521,7 +2526,7 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
                 0x200002a4                        __bss_end__ = _ebss
 
 ._user_heap_stack
-                0x200002a4      0x604 load address 0x080043a0
+                0x200002a4      0x604 load address 0x080044d8
                 0x200002a8                        . = ALIGN (0x8)
  *fill*         0x200002a4        0x4 
                 0x200002a8                        PROVIDE (end = .)
@@ -2620,7 +2625,7 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
 LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libm.a
 LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7-m/nofp/libgcc.a
 
-.debug_frame    0x00000000     0x20a0
+.debug_frame    0x00000000     0x20c8
  .debug_frame   0x00000000      0x144 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-findfp.o)
  .debug_frame   0x00000144       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-memset.o)
  .debug_frame   0x00000164       0x38 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-reent.o)
@@ -2630,206 +2635,206 @@ LOAD /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-non
  .debug_frame   0x000002b0       0x50 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-mallocr.o)
  .debug_frame   0x00000300       0x30 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-mlock.o)
  .debug_frame   0x00000330       0x2c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libc_nano.a(libc_a-sbrkr.o)
- .debug_frame   0x0000035c      0x25c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_frame   0x000005b8      0x13c CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
- .debug_frame   0x000006f4       0x80 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
- .debug_frame   0x00000774       0x58 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
- .debug_frame   0x000007cc      0x334 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
- .debug_frame   0x00000b00      0x218 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
- .debug_frame   0x00000d18      0x14c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
- .debug_frame   0x00000e64      0x208 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
- .debug_frame   0x0000106c      0x428 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- .debug_frame   0x00001494      0x944 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
- .debug_frame   0x00001dd8       0x7c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-snprintf.o)
- .debug_frame   0x00001e54       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strncmp.o)
- .debug_frame   0x00001e7c       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strcmp.o)
- .debug_frame   0x00001e9c       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strlen.o)
- .debug_frame   0x00001ebc       0x90 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
- .debug_frame   0x00001f4c       0x60 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
- .debug_frame   0x00001fac       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memmove.o)
- .debug_frame   0x00001fd4       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memchr-stub.o)
- .debug_frame   0x00001ffc       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memcpy-stub.o)
- .debug_frame   0x00002024       0x3c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-reallocr.o)
- .debug_frame   0x00002060       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-msizer.o)
- .debug_frame   0x00002080       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libnosys.a(sbrk.o)
+ .debug_frame   0x0000035c      0x284 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_frame   0x000005e0      0x13c CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+ .debug_frame   0x0000071c       0x80 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_frame   0x0000079c       0x58 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_frame   0x000007f4      0x334 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_frame   0x00000b28      0x218 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_frame   0x00000d40      0x14c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_frame   0x00000e8c      0x208 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_frame   0x00001094      0x428 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_frame   0x000014bc      0x944 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ .debug_frame   0x00001e00       0x7c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-snprintf.o)
+ .debug_frame   0x00001e7c       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strncmp.o)
+ .debug_frame   0x00001ea4       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strcmp.o)
+ .debug_frame   0x00001ec4       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-strlen.o)
+ .debug_frame   0x00001ee4       0x90 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-svfprintf.o)
+ .debug_frame   0x00001f74       0x60 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-nano-vfprintf_i.o)
+ .debug_frame   0x00001fd4       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memmove.o)
+ .debug_frame   0x00001ffc       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memchr-stub.o)
+ .debug_frame   0x00002024       0x28 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-memcpy-stub.o)
+ .debug_frame   0x0000204c       0x3c /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-reallocr.o)
+ .debug_frame   0x00002088       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libg_nano.a(libc_a-msizer.o)
+ .debug_frame   0x000020a8       0x20 /home/alex/Documents/Application/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7-m/nofp/libnosys.a(sbrk.o)
 
-.debug_info     0x00000000     0x7b6d
- .debug_info    0x00000000     0x14bb CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_info    0x000014bb      0x60d CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
- .debug_info    0x00001ac8      0x989 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
- .debug_info    0x00002451      0x222 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
- .debug_info    0x00002673      0x704 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
- .debug_info    0x00002d77      0x7d5 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
- .debug_info    0x0000354c      0x5ab CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
- .debug_info    0x00003af7      0x6d2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
- .debug_info    0x000041c9      0xa87 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- .debug_info    0x00004c50     0x2eed CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
- .debug_info    0x00007b3d       0x30 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+.debug_info     0x00000000     0x7c48
+ .debug_info    0x00000000     0x1596 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_info    0x00001596      0x60d CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+ .debug_info    0x00001ba3      0x989 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_info    0x0000252c      0x222 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_info    0x0000274e      0x704 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_info    0x00002e52      0x7d5 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_info    0x00003627      0x5ab CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_info    0x00003bd2      0x6d2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_info    0x000042a4      0xa87 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_info    0x00004d2b     0x2eed CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ .debug_info    0x00007c18       0x30 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
 
-.debug_abbrev   0x00000000     0x169e
- .debug_abbrev  0x00000000      0x36d CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_abbrev  0x0000036d      0x18b CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
- .debug_abbrev  0x000004f8      0x1ca CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
- .debug_abbrev  0x000006c2      0x13f CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
- .debug_abbrev  0x00000801      0x201 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
- .debug_abbrev  0x00000a02      0x2b3 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
- .debug_abbrev  0x00000cb5      0x1ca CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
- .debug_abbrev  0x00000e7f      0x20b CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
- .debug_abbrev  0x0000108a      0x2f8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- .debug_abbrev  0x00001382      0x2f8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
- .debug_abbrev  0x0000167a       0x24 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+.debug_abbrev   0x00000000     0x16b9
+ .debug_abbrev  0x00000000      0x388 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_abbrev  0x00000388      0x18b CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+ .debug_abbrev  0x00000513      0x1ca CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_abbrev  0x000006dd      0x13f CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_abbrev  0x0000081c      0x201 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_abbrev  0x00000a1d      0x2b3 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_abbrev  0x00000cd0      0x1ca CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_abbrev  0x00000e9a      0x20b CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_abbrev  0x000010a5      0x2f8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_abbrev  0x0000139d      0x2f8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ .debug_abbrev  0x00001695       0x24 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
 
-.debug_aranges  0x00000000      0x6e0
+.debug_aranges  0x00000000      0x6e8
  .debug_aranges
-                0x00000000       0xa0 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x00000000       0xa8 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .debug_aranges
-                0x000000a0       0x70 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x000000a8       0x70 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
  .debug_aranges
-                0x00000110       0x30 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+                0x00000118       0x30 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
  .debug_aranges
-                0x00000140       0x28 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+                0x00000148       0x28 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
  .debug_aranges
-                0x00000168       0xe0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x00000170       0xe0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
  .debug_aranges
-                0x00000248       0x90 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x00000250       0x90 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
  .debug_aranges
-                0x000002d8       0x58 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x000002e0       0x58 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
  .debug_aranges
-                0x00000330       0x80 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+                0x00000338       0x80 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
  .debug_aranges
-                0x000003b0      0x100 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x000003b8      0x100 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .debug_aranges
-                0x000004b0      0x208 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x000004b8      0x208 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .debug_aranges
-                0x000006b8       0x28 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+                0x000006c0       0x28 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
 
 .debug_rnglists
-                0x00000000      0x564
+                0x00000000      0x56b
  .debug_rnglists
-                0x00000000       0x99 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                0x00000000       0xa0 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
  .debug_rnglists
-                0x00000099       0x4f CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+                0x000000a0       0x4f CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
  .debug_rnglists
-                0x000000e8       0x20 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+                0x000000ef       0x20 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
  .debug_rnglists
-                0x00000108       0x1a CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+                0x0000010f       0x1a CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
  .debug_rnglists
-                0x00000122       0xa3 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+                0x00000129       0xa3 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
  .debug_rnglists
-                0x000001c5       0x6c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+                0x000001cc       0x6c CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
  .debug_rnglists
-                0x00000231       0x3f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+                0x00000238       0x3f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
  .debug_rnglists
-                0x00000270       0x64 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+                0x00000277       0x64 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
  .debug_rnglists
-                0x000002d4       0xbb CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+                0x000002db       0xbb CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
  .debug_rnglists
-                0x0000038f      0x1bc CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+                0x00000396      0x1bc CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
  .debug_rnglists
-                0x0000054b       0x19 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+                0x00000552       0x19 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
 
-.debug_macro    0x00000000    0x16a95
- .debug_macro   0x00000000      0x2d0 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000002d0      0xad8 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00000da8      0x215 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00000fbd       0x2e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00000feb       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0000100d       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0000102f       0x8e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000010bd       0x51 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0000110e      0x103 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00001211       0x6a CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0000127b      0x1df CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0000145a       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00001476       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00001498       0xbd CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00001555      0xd23 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00002278     0xe09e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00010316       0x6d CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00010383     0x34a2 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00013825      0x190 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000139b5       0x5c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00013a11      0x5bc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00013fcd      0x289 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014256      0x1cb CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014421      0x114 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014535      0x1b2 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000146e7       0x27 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001470e      0x136 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014844      0x1bc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014a00       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014a34       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014a70       0x57 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014ac7       0x87 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014b4e      0x240 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014d8e      0x140 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00014ece      0x28e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001515c       0x83 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000151df       0x5e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001523d       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001525f       0x7b CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000152da       0x24 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000152fe       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001533a       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x0001536e      0x364 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000156d2       0x16 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000156e8       0x4a CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015732       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015766       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015776       0x58 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000157ce      0x1e5 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000159b3       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000159c3       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x000159ff       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015a1b       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015a2b       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015a47       0x16 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015a5d      0x170 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_macro   0x00015bcd      0x1a7 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
- .debug_macro   0x00015d74      0x19d CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
- .debug_macro   0x00015f11      0x18e CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
- .debug_macro   0x0001609f      0x1b2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
- .debug_macro   0x00016251      0x1a0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
- .debug_macro   0x000163f1      0x1f9 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
- .debug_macro   0x000165ea      0x18e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
- .debug_macro   0x00016778      0x18e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- .debug_macro   0x00016906      0x18f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+.debug_macro    0x00000000    0x16aa1
+ .debug_macro   0x00000000      0x2dc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000002dc      0xad8 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00000db4      0x215 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00000fc9       0x2e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00000ff7       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00001019       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0000103b       0x8e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000010c9       0x51 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0000111a      0x103 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0000121d       0x6a CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00001287      0x1df CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00001466       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00001482       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000014a4       0xbd CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00001561      0xd23 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00002284     0xe09e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00010322       0x6d CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001038f     0x34a2 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00013831      0x190 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000139c1       0x5c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00013a1d      0x5bc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00013fd9      0x289 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014262      0x1cb CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001442d      0x114 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014541      0x1b2 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000146f3       0x27 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001471a      0x136 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014850      0x1bc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014a0c       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014a40       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014a7c       0x57 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014ad3       0x87 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014b5a      0x240 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014d9a      0x140 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00014eda      0x28e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015168       0x83 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000151eb       0x5e CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015249       0x22 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001526b       0x7b CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000152e6       0x24 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001530a       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015346       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001537a      0x364 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000156de       0x16 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000156f4       0x4a CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x0001573e       0x34 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015772       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015782       0x58 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000157da      0x1e5 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000159bf       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x000159cf       0x3c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015a0b       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015a27       0x10 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015a37       0x1c CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015a53       0x16 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015a69      0x170 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_macro   0x00015bd9      0x1a7 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+ .debug_macro   0x00015d80      0x19d CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_macro   0x00015f1d      0x18e CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_macro   0x000160ab      0x1b2 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_macro   0x0001625d      0x1a0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_macro   0x000163fd      0x1f9 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_macro   0x000165f6      0x18e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_macro   0x00016784      0x18e CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_macro   0x00016912      0x18f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
 
-.debug_line     0x00000000     0x8124
- .debug_line    0x00000000      0xfaa CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
- .debug_line    0x00000faa      0x73b CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
- .debug_line    0x000016e5      0x6b3 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
- .debug_line    0x00001d98      0x6db CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
- .debug_line    0x00002473      0x90f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
- .debug_line    0x00002d82      0xdc5 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
- .debug_line    0x00003b47      0x945 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
- .debug_line    0x0000448c      0xd10 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
- .debug_line    0x0000519c      0xae8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
- .debug_line    0x00005c84     0x2428 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
- .debug_line    0x000080ac       0x78 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+.debug_line     0x00000000     0x81da
+ .debug_line    0x00000000     0x1060 CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+ .debug_line    0x00001060      0x73b CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+ .debug_line    0x0000179b      0x6b3 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_line    0x00001e4e      0x6db CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_line    0x00002529      0x90f CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_line    0x00002e38      0xdc5 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_line    0x00003bfd      0x945 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_line    0x00004542      0xd10 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_line    0x00005252      0xae8 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_line    0x00005d3a     0x2428 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ .debug_line    0x00008162       0x78 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
 
-.debug_str      0x00000000    0x81edc
- .debug_str     0x00000000    0x81edc CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
-                              0x80bc1 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
+.debug_str      0x00000000    0x81f7f
+ .debug_str     0x00000000    0x81f7f CMakeFiles/range-test-rx.dir/Core/Src/main.c.obj
+                              0x80c72 (size before relaxing)
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_it.c.obj
                               0x7d03f (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Core/Src/stm32f1xx_hal_msp.c.obj
                               0x7d361 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Core/Src/system_stm32f1xx.c.obj
                               0x7caaa (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c.obj
                               0x7d1dd (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c.obj
                               0x7ced9 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c.obj
                               0x7ce30 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c.obj
                               0x7ce53 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c.obj
                               0x7d129 (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c.obj
                               0x7d54a (size before relaxing)
- .debug_str     0x00081edc        0x0 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
+ .debug_str     0x00081f7f        0x0 CMakeFiles/range-test-rx.dir/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s.obj
                                  0xdf (size before relaxing)
 
 .comment        0x00000000       0x45
