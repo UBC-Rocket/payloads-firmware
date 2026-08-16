@@ -44,6 +44,8 @@
 #define ONE_SHOT_COMMAND_REPEATS 1U
 #define PING_REPLY_TIMEOUT_MS 12000U
 #define BUMP_MAX_SECONDS     3600U
+#define BUMP_MIN_TENTHS      10U
+#define BUMP_MAX_TENTHS      (BUMP_MAX_SECONDS * 10U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -85,7 +87,8 @@ static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
 static bool Serial_TakeCommand(char *command, uint16_t command_size);
-static bool Parse_Bump_Command(const char *command, uint32_t *seconds);
+static bool Parse_Bump_Command(const char *command,
+                               uint32_t *duration_tenths);
 static int Hex_Nibble(char c);
 /* USER CODE END PFP */
 
@@ -278,43 +281,56 @@ static bool Serial_TakeCommand(char *command, uint16_t command_size)
 }
 
 /**
-  * @brief Validate a BUMP command and return its whole-second duration.
+  * @brief Validate a BUMP command and return its duration in tenths.
   */
-static bool Parse_Bump_Command(const char *command, uint32_t *seconds)
+static bool Parse_Bump_Command(const char *command,
+                               uint32_t *duration_tenths)
 {
+  Debug_Log("HELLO SHADAB\n");
   static const char prefix[] = "BUMP ";
-  if (command == NULL || seconds == NULL ||
+  if (command == NULL || duration_tenths == NULL ||
       strncmp(command, prefix, sizeof(prefix) - 1U) != 0)
   {
     return false;
   }
 
-  const char *digit = command + (sizeof(prefix) - 1U);
-  if (*digit == '\0')
+  const char *cursor = command + (sizeof(prefix) - 1U);
+  uint32_t whole_seconds = 0U;
+  uint32_t whole_digits = 0U;
+  while (*cursor >= '0' && *cursor <= '9')
+  {
+    const uint32_t digit = (uint32_t)(*cursor - '0');
+    if (whole_seconds > (BUMP_MAX_SECONDS - digit) / 10U)
+    {
+      return false;
+    }
+    whole_seconds = (whole_seconds * 10U) + digit;
+    whole_digits++;
+    cursor++;
+  }
+  if (whole_digits == 0U)
   {
     return false;
   }
 
-  uint32_t value = 0U;
-  while (*digit != '\0')
+  uint32_t tenths = whole_seconds * 10U;
+  if (*cursor == '.')
   {
-    if (*digit < '0' || *digit > '9')
+    cursor++;
+    if (*cursor < '0' || *cursor > '9' || cursor[1] != '\0')
     {
       return false;
     }
-    value = value * 10U + (uint32_t)(*digit - '0');
-    if (value > BUMP_MAX_SECONDS)
-    {
-      return false;
-    }
-    digit++;
+    tenths += (uint32_t)(*cursor - '0');
+    cursor++;
   }
 
-  if (value == 0U)
+  if (*cursor != '\0' ||
+      tenths < BUMP_MIN_TENTHS || tenths > BUMP_MAX_TENTHS)
   {
     return false;
   }
-  *seconds = value;
+  *duration_tenths = tenths;
   return true;
 }
 
@@ -564,8 +580,9 @@ int main(void)
        the module is idle and can safely switch from RX to TX. */
     if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
     {
-      uint32_t bump_seconds = 0U;
-      const bool is_bump = Parse_Bump_Command(serial_line, &bump_seconds);
+      uint32_t bump_duration_tenths = 0U;
+      const bool is_bump =
+          Parse_Bump_Command(serial_line, &bump_duration_tenths);
       if (strcmp(serial_line, "PUMP_ON") == 0 ||
           strcmp(serial_line, "PUMP_OFF") == 0 ||
           strcmp(serial_line, "LED_ON") == 0 ||

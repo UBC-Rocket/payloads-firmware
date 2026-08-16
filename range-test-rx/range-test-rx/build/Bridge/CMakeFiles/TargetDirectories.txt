@@ -1,3 +1,0 @@
-/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Bridge/CMakeFiles/range-test-rx.dir
-/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Bridge/CMakeFiles/edit_cache.dir
-/home/alex/Code/payloads/range-test-rx/range-test-rx/build/Bridge/CMakeFiles/rebuild_cache.dir

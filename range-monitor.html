@@ -106,7 +106,7 @@
   <button id="btnPing" disabled>Ping payload</button>
   <button id="btnPump" disabled>Turn pump on</button>
   <label class="duration-control">
-    <input id="bumpSeconds" type="number" min="1" max="3600" step="1" value="5" aria-label="Bump duration in seconds" disabled>
+    <input id="bumpSeconds" type="number" min="1" max="3600" step="0.1" value="5" aria-label="Bump duration in seconds" disabled>
     <span>s</span>
   </label>
   <button id="btnBump" disabled>Run bump</button>
@@ -217,9 +217,11 @@ function handleLine(raw) {
     return;
   }
 
-  const bumpEvent = raw.match(/^EVENT BUMP applied pump=1 seconds=(\d+)/);
+  const bumpEvent = raw.match(
+    /^EVENT BUMP applied pump=1 seconds=(\d+(?:\.\d)?)/
+  );
   if (bumpEvent) {
-    startPumpBumpCountdown(parseInt(bumpEvent[1], 10));
+    startPumpBumpCountdown(parseFloat(bumpEvent[1]));
     addLog(raw, "rx");
     return;
   }
@@ -280,7 +282,7 @@ function handleLine(raw) {
   }
 
   const bridgeResult = raw.match(
-    /^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|LED_(?:ON|OFF)|PING|BUMP \d+) (OK|FAILED)(?:\s|$)/
+    /^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|LED_(?:ON|OFF)|PING|BUMP \d+(?:\.\d)?) (OK|FAILED)(?:\s|$)/
   );
   if (bridgeResult) {
     if (bridgeResult[1] === "PING" && bridgeResult[2] === "OK") {
@@ -292,7 +294,7 @@ function handleLine(raw) {
       } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_OFF") {
         stopPumpBumpCountdown(false);
       } else if (bridgeResult[2] === "OK" && bridgeResult[1].startsWith("BUMP ")) {
-        startPumpBumpCountdown(parseInt(bridgeResult[1].slice(5), 10));
+        startPumpBumpCountdown(parseFloat(bridgeResult[1].slice(5)));
       } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_ON") {
         ledCommandedOn = true;
       } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_OFF") {
@@ -692,12 +694,16 @@ $("btnPump").addEventListener("click", () =>
 );
 $("btnBump").addEventListener("click", () => {
   const input = $("bumpSeconds");
-  const seconds = Number(input.value);
-  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) {
+  const durationText = input.value.trim();
+  const seconds = Number(durationText);
+  const valid = /^\d+(?:\.\d)?$/.test(durationText) &&
+    Number.isFinite(seconds) && seconds >= 1 && seconds <= 3600;
+  input.setCustomValidity(valid ? "" : "Enter 1 to 3600 seconds with at most one decimal place.");
+  if (!valid) {
     input.reportValidity();
     return;
   }
-  sendSerialCommand("BUMP " + seconds);
+  sendSerialCommand("BUMP " + durationText);
 });
 $("bumpSeconds").addEventListener("keydown", event => {
   if (event.key === "Enter") $("btnBump").click();

@@ -341,35 +341,47 @@ static bool decode_radio_payload(const char *line,
     return length > 0U;
 }
 
-static bool parse_bump_seconds(const char *payload, uint32_t *seconds)
+static bool parse_bump_duration_ms(const char *payload, uint32_t *duration_ms)
 {
     static const char prefix[] = "BUMP ";
-    if (payload == NULL || seconds == NULL ||
+    if (payload == NULL || duration_ms == NULL ||
         strncmp(payload, prefix, sizeof(prefix) - 1U) != 0) {
         return false;
     }
 
-    const char *digit = payload + (sizeof(prefix) - 1U);
-    if (*digit == '\0') {
+    const char *cursor = payload + (sizeof(prefix) - 1U);
+    uint32_t whole_seconds = 0U;
+    size_t whole_digits = 0U;
+    while (*cursor >= '0' && *cursor <= '9') {
+        const uint32_t digit = (uint32_t)(*cursor - '0');
+        if (whole_seconds >
+            (RN2483_BUMP_MAX_SECONDS - digit) / 10U) {
+            return false;
+        }
+        whole_seconds = (whole_seconds * 10U) + digit;
+        whole_digits++;
+        cursor++;
+    }
+    if (whole_digits == 0U) {
         return false;
     }
 
-    uint32_t value = 0U;
-    while (*digit != '\0') {
-        if (*digit < '0' || *digit > '9') {
+    uint32_t duration_tenths = whole_seconds * 10U;
+    if (*cursor == '.') {
+        cursor++;
+        if (*cursor < '0' || *cursor > '9' || cursor[1] != '\0') {
             return false;
         }
-        value = value * 10U + (uint32_t)(*digit - '0');
-        if (value > RN2483_BUMP_MAX_SECONDS) {
-            return false;
-        }
-        digit++;
+        duration_tenths += (uint32_t)(*cursor - '0');
+        cursor++;
     }
 
-    if (value == 0U) {
+    if (*cursor != '\0' ||
+        duration_tenths < (RN2483_BUMP_MIN_DURATION_MS / 100U) ||
+        duration_tenths > (RN2483_BUMP_MAX_DURATION_MS / 100U)) {
         return false;
     }
-    *seconds = value;
+    *duration_ms = duration_tenths * 100U;
     return true;
 }
 
@@ -383,7 +395,7 @@ static void handle_complete_line(rn2483_t *device,
 
     if (device->phase == RN2483_PHASE_LISTENING) {
         char payload[(RN2483_LINE_SIZE / 2U) + 1U];
-        uint32_t bump_seconds = 0U;
+        uint32_t bump_duration_ms = 0U;
         const bool payload_valid =
             decode_radio_payload(line, payload, sizeof(payload));
         if (payload_valid && strcmp(payload, "PUMP_ON") == 0) {
@@ -399,8 +411,8 @@ static void handle_complete_line(rn2483_t *device,
             device->pending_event = RN2483_EVENT_LED_OFF;
             device->stats.valid_commands++;
         } else if (payload_valid &&
-                   parse_bump_seconds(payload, &bump_seconds)) {
-            device->pending_bump_seconds = bump_seconds;
+                   parse_bump_duration_ms(payload, &bump_duration_ms)) {
+            device->pending_bump_duration_ms = bump_duration_ms;
             device->pending_event = RN2483_EVENT_BUMP;
             device->stats.valid_commands++;
         } else if (payload_valid && strcmp(payload, "PING") == 0) {
@@ -604,9 +616,9 @@ rn2483_event_t rn2483_take_event(rn2483_t *device)
     return event;
 }
 
-uint32_t rn2483_bump_seconds(const rn2483_t *device)
+uint32_t rn2483_bump_duration_ms(const rn2483_t *device)
 {
-    return device == NULL ? 0U : device->pending_bump_seconds;
+    return device == NULL ? 0U : device->pending_bump_duration_ms;
 }
 
 bool rn2483_is_ready(const rn2483_t *device)

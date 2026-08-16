@@ -123,8 +123,10 @@ with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
   `UV read` diagnostics. The range monitor displays these lines without special
   parsing.
 - `PUMP_ON` and `PUMP_OFF` independently control the PD2 pump output.
-  `BUMP <seconds>` turns the pump on for 1 through 3600 whole seconds, then
+  `BUMP <seconds>` turns the pump on for 1 through 3600 seconds, then
   turns it off without blocking sensor acquisition, logging, or radio work.
+  The duration may be an integer or have exactly one decimal digit, such as
+  `BUMP 5` or `BUMP 5.5`; the command remains plain ASCII over the radio.
   A later `PUMP_ON`, `PUMP_OFF`, or `BUMP` supersedes the active bump timer.
   `LED_ON` and `LED_OFF` independently control the PD1 LED output; PWM commands
   are not accepted. `PING` leaves both outputs unchanged and replies with

@@ -203,7 +203,16 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
-    CHECK(rn2483_bump_seconds(&device) == 5U);
+    CHECK(rn2483_bump_duration_ms(&device) == 5000U);
+    feed_line(&device, "ok");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+
+    feed_line(&device, "radio_rx 42554D5020312E35");
+    now_ms++;
+    rn2483_process(&device, now_ms);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
+    CHECK(rn2483_bump_duration_ms(&device) == 1500U);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
@@ -212,7 +221,8 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
-    CHECK(rn2483_bump_seconds(&device) == RN2483_BUMP_MAX_SECONDS);
+    CHECK(rn2483_bump_duration_ms(&device) ==
+          RN2483_BUMP_MAX_DURATION_MS);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
@@ -220,7 +230,7 @@ static void test_configuration_and_commands(void)
     const char *invalid_bumps[] = {
         "radio_rx 42554D502030",
         "radio_rx 42554D502033363031",
-        "radio_rx 42554D5020312E35",
+        "radio_rx 42554D5020312E3535",
         "radio_rx 42554D5020",
     };
     for (size_t index = 0U;
@@ -240,7 +250,7 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PING);
-    CHECK(device.stats.valid_commands == 8U);
+    CHECK(device.stats.valid_commands == 9U);
     CHECK(device.stats.invalid_packets == 5U);
     CHECK(fake.command_count == command_count_before_ping);
     CHECK(rn2483_send_text(&device, "PONG"));
@@ -272,7 +282,7 @@ static void test_validation_and_recovery(void)
         .sync_word = 0x12U,
     };
     rn2483_t device;
-    CHECK(rn2483_bump_seconds(NULL) == 0U);
+    CHECK(rn2483_bump_duration_ms(NULL) == 0U);
     CHECK(rn2483_init(NULL, &transport, &config, 0U) ==
           RN2483_ERROR_ARGUMENT);
     config.frequency_hz = 915000000U;

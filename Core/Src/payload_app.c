@@ -487,22 +487,32 @@ static void process_radio(uint32_t now_ms)
             set_led_pwm(0U);
             debug_transmit("EVENT LED_OFF applied led=0\r\n");
         } else if (event == RN2483_EVENT_BUMP) {
-            const uint32_t seconds = rn2483_bump_seconds(&radio);
+            const uint32_t duration_ms = rn2483_bump_duration_ms(&radio);
             const bool pump_was_on = payload_pump_on;
             set_pump(true);
-            pump_bump_ends_at_ms = now_ms + (seconds * 1000U);
+            pump_bump_ends_at_ms = now_ms + duration_ms;
             pump_bump_active = true;
             if (!pump_was_on) {
                 sd_logger_begin_experiment(&logger, now_ms);
             }
 
             char line[DEBUG_LINE_SIZE];
-            const int length = snprintf(
-                line,
-                sizeof(line),
-                "EVENT BUMP applied pump=1 seconds=%lu log=%s\r\n",
-                (unsigned long)seconds,
-                pump_was_on ? "unchanged" : "EXP");
+            const uint32_t whole_seconds = duration_ms / 1000U;
+            const uint32_t fractional_tenth = (duration_ms % 1000U) / 100U;
+            const int length = fractional_tenth == 0U
+                ? snprintf(
+                      line,
+                      sizeof(line),
+                      "EVENT BUMP applied pump=1 seconds=%lu log=%s\r\n",
+                      (unsigned long)whole_seconds,
+                      pump_was_on ? "unchanged" : "EXP")
+                : snprintf(
+                      line,
+                      sizeof(line),
+                      "EVENT BUMP applied pump=1 seconds=%lu.%lu log=%s\r\n",
+                      (unsigned long)whole_seconds,
+                      (unsigned long)fractional_tenth,
+                      pump_was_on ? "unchanged" : "EXP");
             if (length > 0 && (size_t)length < sizeof(line)) {
                 debug_transmit(line);
             }
