@@ -737,7 +737,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
     const int boot_length = snprintf(
         boot_line,
         sizeof(boot_line),
-        "BOOT freq=%lu sf=%u bw=%u cr=4/%u sync=%02X bind=%u autobaud=%u\r\n",
+        "BOOT freq=%lu sf=%u bw=%u cr=4/%u sync=%02X bind=%u "
+        "autobaud=%u bump_timer=irq\r\n",
         (unsigned long)radio_config.frequency_hz,
         radio_config.spreading_factor,
         radio_config.bandwidth_khz,

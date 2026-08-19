@@ -73,8 +73,9 @@ openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
 
 Replace the example values with the transmitter's spreading factor, bandwidth,
 coding-rate denominator, and sync byte. The frequency can still be overridden
-with `-DRN2483_RADIO_FREQ_HZ` when needed. The ELF is written to
-`build/Debug/Payloads.elf`.
+with `-DRN2483_RADIO_FREQ_HZ` when needed. Flashable ELF, HEX, and BIN images are
+written under `build/Debug/`; updating only the radio bridge does not update the
+payload-side `BUMP` parser or deadline timer.
 
 ## Runtime behavior
 
