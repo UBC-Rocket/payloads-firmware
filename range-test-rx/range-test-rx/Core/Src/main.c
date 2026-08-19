@@ -259,6 +259,18 @@ static HAL_StatusTypeDef RN2483_StopReceive(char *detail, uint16_t detail_size)
       return HAL_OK;
     }
 
+    /* The receive watchdog can expire after the host queues a command but
+       before rxstop reaches the module.  In that race the RN2483 reports
+       invalid_param because there is no longer an active receive operation.
+       The requested end state (radio idle) has still been reached, so allow
+       the queued command to proceed instead of retrying rxstop forever. */
+    if (strcmp(line, "invalid_param") == 0)
+    {
+      RN2483_Flush();
+      snprintf(detail, detail_size, "already_idle");
+      return HAL_OK;
+    }
+
     if (strcmp(line, "radio_err") == 0 ||
         strncmp(line, "radio_rx", 8U) == 0 ||
         strcmp(line, "busy") == 0)
