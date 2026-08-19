@@ -758,6 +758,7 @@ int main(void)
         if (transmit_status == HAL_OK &&
             transmissions == required_transmissions)
         {
+          radio_sync_failures = 0U;
           snprintf(out, sizeof(out), "BRIDGE RADIO TX %s OK repeats=%u",
                    serial_line, transmissions);
           Debug_Log(out);
@@ -773,7 +774,9 @@ int main(void)
                    "BRIDGE RADIO TX %s FAILED attempt=%u (%s)",
                    serial_line, (unsigned int)(transmissions + 1U), detail);
           Debug_Log(out);
-          RN2483_Flush();
+          Debug_Log("BRIDGE RADIO RECOVERY after transmit failure");
+          RN2483_Initialize();
+          radio_sync_failures = 0U;
         }
       }
       else
