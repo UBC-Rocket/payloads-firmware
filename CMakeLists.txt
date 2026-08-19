@@ -90,6 +90,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    Core/Src/pump_timer.c
     Core/Src/payload_app.c
     Core/Src/rn2483.c
     Core/Src/rn2483_stm32.c

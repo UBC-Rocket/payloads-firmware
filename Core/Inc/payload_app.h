@@ -16,4 +16,11 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
 
 void payload_app_process(void);
 
+/**
+ * @brief Enforce real-time output deadlines from the 1 ms system tick.
+ *
+ * This must stay non-blocking because it runs in interrupt context.
+ */
+void payload_app_1ms_tick(uint32_t now_ms);
+
 #endif /* PAYLOAD_APP_H */

@@ -140,9 +140,9 @@ The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
 ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
 `PUMP_OFF`, `BUMP <seconds>`, `LED_ON`, `LED_OFF`, and `PING` lines from
 `range-monitor.html`. Reception is interrupt-driven,
-so commands are retained while the RN2483 is listening. Between two-second
-receive slices the bridge converts the command to a raw-LoRa hex payload. Output
-commands are transmitted three times with the same
+so commands are retained while the RN2483 is listening. A queued command stops
+the current receive slice, then the bridge converts it to a raw-LoRa hex
+payload. Output commands are transmitted three times with the same
 SF12/BW125/CR4/5/sync-0x34
 profile; `BUMP` and `PING` are transmitted once. The bridge waits for each `radio_tx_ok`
 and returns to receive mode. Repetition gives each idempotent output command extra

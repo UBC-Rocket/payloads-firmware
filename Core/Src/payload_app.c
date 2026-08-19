@@ -3,6 +3,7 @@
 #include "accel/bmi088_accel.h"
 #include "accel/bmi088_accel_stm32.h"
 #include "main.h"
+#include "pump_timer.h"
 #include "rn2483.h"
 #include "rn2483_stm32.h"
 #include "storage/payload_log.h"
@@ -86,8 +87,8 @@ static uint32_t debug_next_status_ms;
 static uint32_t radio_reported_invalid_packets;
 static uint32_t ping_reply_at_ms;
 static bool ping_reply_pending;
-static uint32_t pump_bump_ends_at_ms;
-static bool pump_bump_active;
+static pump_timer_t pump_bump_timer;
+static volatile bool pump_bump_completion_pending;
 
 static uint32_t uv_next_poll_ms;
 static uint32_t uv_retry_at_ms;
@@ -465,7 +466,7 @@ static void process_radio(uint32_t now_ms)
     rn2483_event_t event;
     while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
         if (event == RN2483_EVENT_PUMP_ON) {
-            pump_bump_active = false;
+            pump_timer_cancel(&pump_bump_timer);
             const bool pump_was_on = payload_pump_on;
             set_pump(true);
             if (!pump_was_on) {
@@ -477,7 +478,7 @@ static void process_radio(uint32_t now_ms)
                     "EVENT PUMP_ON applied pump=1 log=unchanged\r\n");
             }
         } else if (event == RN2483_EVENT_PUMP_OFF) {
-            pump_bump_active = false;
+            pump_timer_cancel(&pump_bump_timer);
             set_pump(false);
             debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
         } else if (event == RN2483_EVENT_LED_ON) {
@@ -489,9 +490,8 @@ static void process_radio(uint32_t now_ms)
         } else if (event == RN2483_EVENT_BUMP) {
             const uint32_t duration_ms = rn2483_bump_duration_ms(&radio);
             const bool pump_was_on = payload_pump_on;
+            pump_timer_start(&pump_bump_timer, now_ms, duration_ms);
             set_pump(true);
-            pump_bump_ends_at_ms = now_ms + duration_ms;
-            pump_bump_active = true;
             if (!pump_was_on) {
                 sd_logger_begin_experiment(&logger, now_ms);
             }
@@ -528,15 +528,13 @@ static void process_radio(uint32_t now_ms)
     payload_radio_ready = rn2483_is_ready(&radio);
 }
 
-static void process_pump_bump(uint32_t now_ms)
+static void process_pump_bump_completion(void)
 {
-    if (!pump_bump_active ||
-        !deadline_reached(now_ms, pump_bump_ends_at_ms)) {
+    if (!pump_bump_completion_pending) {
         return;
     }
 
-    pump_bump_active = false;
-    set_pump(false);
+    pump_bump_completion_pending = false;
     debug_transmit("EVENT BUMP complete pump=0\r\n");
 }
 
@@ -692,8 +690,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
     radio_reported_invalid_packets = 0U;
     ping_reply_at_ms = 0U;
     ping_reply_pending = false;
-    pump_bump_ends_at_ms = 0U;
-    pump_bump_active = false;
+    pump_timer_cancel(&pump_bump_timer);
+    pump_bump_completion_pending = false;
     set_pump(false);
     set_led_pwm(0U);
 
@@ -758,8 +756,8 @@ void payload_app_process(void)
     const uint64_t now_extended_ms = monotonic_ms();
     const uint32_t now_ms = (uint32_t)now_extended_ms;
 
+    process_pump_bump_completion();
     process_radio(now_ms);
-    process_pump_bump(now_ms);
     debug_radio_status(now_ms, false);
     process_uv(now_ms);
     process_accelerometer(now_ms, now_extended_ms);
@@ -767,6 +765,19 @@ void payload_app_process(void)
 
     payload_sd_status = sd_logger_status(&logger);
     payload_log_dropped_count = sd_logger_dropped_records(&logger);
+}
+
+void payload_app_1ms_tick(uint32_t now_ms)
+{
+    if (!pump_timer_expire(&pump_bump_timer, now_ms)) {
+        return;
+    }
+
+    /* GPIO writes are bounded and safe here. Keeping this in the tick
+       interrupt prevents SD-card initialization/sync delays from stretching a
+       requested BUMP duration. Debug output remains in the main loop. */
+    set_pump(false);
+    pump_bump_completion_pending = true;
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)

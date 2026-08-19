@@ -82,6 +82,9 @@ static void MX_USART2_UART_Init(void);
 static void Debug_Log(const char *msg);
 static void RN2483_Flush(void);
 static HAL_StatusTypeDef RN2483_ReadLine(char *buf, uint16_t size, uint32_t timeout);
+static HAL_StatusTypeDef RN2483_ReadLineInterruptible(char *buf,
+                                                      uint16_t size,
+                                                      uint32_t timeout);
 static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t size, uint32_t timeout);
 static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
@@ -118,13 +121,22 @@ static void RN2483_Flush(void)
   * @brief Read one CR/LF-terminated line from the module into buf.
   *        The terminator is stripped and buf is always NUL-terminated.
   */
-static HAL_StatusTypeDef RN2483_ReadLine(char *buf, uint16_t size, uint32_t timeout)
+static HAL_StatusTypeDef RN2483_ReadLineInternal(char *buf,
+                                                 uint16_t size,
+                                                 uint32_t timeout,
+                                                 bool serial_interruptible)
 {
   uint32_t start = HAL_GetTick();
   uint16_t len = 0;
 
   while ((HAL_GetTick() - start) < timeout)
   {
+    if (serial_interruptible && serial_queue_count > 0U)
+    {
+      buf[len] = '\0';
+      return HAL_BUSY;
+    }
+
     uint8_t c;
     if (HAL_UART_Receive(&huart2, &c, 1, 10) != HAL_OK)
     {
@@ -150,6 +162,20 @@ static HAL_StatusTypeDef RN2483_ReadLine(char *buf, uint16_t size, uint32_t time
   }
   buf[len] = '\0';
   return HAL_TIMEOUT;
+}
+
+static HAL_StatusTypeDef RN2483_ReadLine(char *buf,
+                                         uint16_t size,
+                                         uint32_t timeout)
+{
+  return RN2483_ReadLineInternal(buf, size, timeout, false);
+}
+
+static HAL_StatusTypeDef RN2483_ReadLineInterruptible(char *buf,
+                                                      uint16_t size,
+                                                      uint32_t timeout)
+{
+  return RN2483_ReadLineInternal(buf, size, timeout, true);
 }
 
 /**
@@ -286,7 +312,6 @@ static bool Serial_TakeCommand(char *command, uint16_t command_size)
 static bool Parse_Bump_Command(const char *command,
                                uint32_t *duration_tenths)
 {
-  Debug_Log("HELLO SHADAB\n");
   static const char prefix[] = "BUMP ";
   if (command == NULL || duration_tenths == NULL ||
       strncmp(command, prefix, sizeof(prefix) - 1U) != 0)
@@ -685,8 +710,21 @@ int main(void)
       continue;
     }
 
-    /* Wait for the outcome of this window: a packet or the watchdog. */
-    if (RN2483_ReadLine(line, sizeof(line), RN2483_RX_WDT_MS + 2000U) != HAL_OK)
+    /* Wait for a packet, the watchdog, or a host command. A host command stops
+       this receive window instead of inheriting its remaining queue delay. */
+    const HAL_StatusTypeDef receive_status =
+        RN2483_ReadLineInterruptible(line,
+                                     sizeof(line),
+                                     RN2483_RX_WDT_MS + 2000U);
+    if (receive_status == HAL_BUSY)
+    {
+      (void)RN2483_Command("radio rxstop", resp, sizeof(resp),
+                           RN2483_RESP_TIMEOUT);
+      HAL_Delay(200U);
+      RN2483_Flush();
+      continue;
+    }
+    if (receive_status != HAL_OK)
     {
       Debug_Log("(module went quiet, re-arming)");
       continue;

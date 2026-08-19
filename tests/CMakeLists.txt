@@ -72,6 +72,26 @@ endif()
 
 add_test(NAME rn2483 COMMAND test_rn2483)
 
+add_executable(test_pump_timer
+    test_pump_timer.c
+    ../Core/Src/pump_timer.c
+)
+
+target_include_directories(test_pump_timer PRIVATE
+    ../Core/Inc
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(test_pump_timer PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+    )
+endif()
+
+add_test(NAME pump_timer COMMAND test_pump_timer)
+
 add_executable(test_sd_logger
     test_sd_logger.c
     ../Core/Src/storage/payload_log.c
