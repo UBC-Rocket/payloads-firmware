@@ -86,6 +86,7 @@ static HAL_StatusTypeDef RN2483_ReadLineInterruptible(char *buf,
                                                       uint16_t size,
                                                       uint32_t timeout);
 static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t size, uint32_t timeout);
+static HAL_StatusTypeDef RN2483_StopReceive(char *detail, uint16_t detail_size);
 static void RN2483_CommandChecked(const char *cmd);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
@@ -166,7 +167,7 @@ static HAL_StatusTypeDef RN2483_ReadLineInternal(char *buf,
 
   while ((HAL_GetTick() - start) < timeout)
   {
-    if (serial_interruptible && serial_queue_count > 0U)
+    if (serial_interruptible && serial_queue_count > 0U && len == 0U)
     {
       buf[len] = '\0';
       return HAL_BUSY;
@@ -221,6 +222,61 @@ static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t si
   HAL_UART_Transmit(&huart1, (uint8_t *)cmd, (uint16_t)strlen(cmd), 100);
   HAL_UART_Transmit(&huart1, (uint8_t *)"\r\n", 2, 100);
   return RN2483_ReadLine(resp, size, timeout);
+}
+
+/**
+  * @brief Stop continuous RX and wait for this command's explicit "ok".
+  *        Pending radio_rx/radio_err lines belong to the old receive command
+  *        and must not be mistaken for the rxstop response.
+  */
+static HAL_StatusTypeDef RN2483_StopReceive(char *detail, uint16_t detail_size)
+{
+  static const char command[] = "radio rxstop\r\n";
+  char line[80];
+  const uint32_t started_ms = HAL_GetTick();
+
+  if (detail == NULL || detail_size == 0U)
+  {
+    return HAL_ERROR;
+  }
+  detail[0] = '\0';
+
+  if (HAL_UART_Transmit(&huart1, (uint8_t *)command,
+                        (uint16_t)(sizeof(command) - 1U), 100U) != HAL_OK)
+  {
+    snprintf(detail, detail_size, "rxstop_write_failed");
+    return HAL_ERROR;
+  }
+
+  while ((HAL_GetTick() - started_ms) < RN2483_RESP_TIMEOUT)
+  {
+    const uint32_t elapsed_ms = HAL_GetTick() - started_ms;
+    const uint32_t remaining_ms = RN2483_RESP_TIMEOUT - elapsed_ms;
+    if (RN2483_ReadLine(line, sizeof(line), remaining_ms) != HAL_OK)
+    {
+      break;
+    }
+
+    if (strcmp(line, "ok") == 0)
+    {
+      RN2483_Flush();
+      snprintf(detail, detail_size, "ok");
+      return HAL_OK;
+    }
+
+    if (strcmp(line, "radio_err") == 0 ||
+        strncmp(line, "radio_rx", 8U) == 0 ||
+        strcmp(line, "busy") == 0)
+    {
+      continue;
+    }
+
+    snprintf(detail, detail_size, "rxstop_%.20s", line);
+    return HAL_ERROR;
+  }
+
+  snprintf(detail, detail_size, "rxstop_timeout");
+  return HAL_TIMEOUT;
 }
 
 /**
@@ -555,10 +611,7 @@ int main(void)
         /* A module-side RX session survives an MCU-only reset.  Force it idle
            after MAC pause has succeeded, then drain the rxstop outcome before
            beginning the known-good radio configuration sequence. */
-        (void)RN2483_Command("radio rxstop", resp, sizeof(resp),
-                             RN2483_RESP_TIMEOUT);
-        HAL_Delay(200U);
-        RN2483_Flush();
+        (void)RN2483_StopReceive(resp, sizeof(resp));
         break;
       }
 
@@ -637,8 +690,22 @@ int main(void)
       Debug_Log(out);
     }
 
-    /* A complete VCP line is handled only between LoRa receive windows, when
-       the module is idle and can safely switch from RX to TX. */
+    /* A queued VCP command interrupts the receive wait. Confirm that rxstop
+       itself answered "ok" before removing the command from the queue. */
+    if (serial_queue_count > 0U)
+    {
+      char stop_detail[32];
+      if (RN2483_StopReceive(stop_detail, sizeof(stop_detail)) != HAL_OK)
+      {
+        snprintf(out, sizeof(out), "BRIDGE RADIO STOP FAILED (%s)",
+                 stop_detail);
+        Debug_Log(out);
+        continue;
+      }
+    }
+
+    /* A complete VCP line is handled only when the module is idle and can
+       safely switch from RX to TX. */
     if (Serial_TakeCommand(serial_line, sizeof(serial_line)))
     {
       uint32_t bump_duration_tenths = 0U;
@@ -734,16 +801,17 @@ int main(void)
     }
 
     /* Arm one receive window (0 = until a packet or the watchdog fires). */
-    if (RN2483_Command("radio rx 0", resp, sizeof(resp), RN2483_RESP_TIMEOUT) != HAL_OK ||
-        strcmp(resp, "ok") != 0)
+    const HAL_StatusTypeDef arm_status =
+        RN2483_Command("radio rx 0", resp, sizeof(resp), RN2483_RESP_TIMEOUT);
+    if (arm_status != HAL_OK || strcmp(resp, "ok") != 0)
     {
       /* Refusal usually means a stale rx window is still active (e.g. after an
          MCU reset mid-listen) and command/response pairing has drifted. Force
          the radio idle, then drain every queued line so responses resync. */
-      Debug_Log("'radio rx 0' refused - resyncing");
-      RN2483_Command("radio rxstop", resp, sizeof(resp), RN2483_RESP_TIMEOUT);
-      HAL_Delay(200);
-      RN2483_Flush();
+      snprintf(out, sizeof(out), "'radio rx 0' refused (%s) - resyncing",
+               arm_status == HAL_OK ? resp : "timeout");
+      Debug_Log(out);
+      (void)RN2483_StopReceive(resp, sizeof(resp));
       continue;
     }
 
@@ -755,15 +823,13 @@ int main(void)
                                      RN2483_RX_WDT_MS + 2000U);
     if (receive_status == HAL_BUSY)
     {
-      (void)RN2483_Command("radio rxstop", resp, sizeof(resp),
-                           RN2483_RESP_TIMEOUT);
-      HAL_Delay(200U);
-      RN2483_Flush();
+      /* The next loop iteration stops RX before dequeuing the VCP command. */
       continue;
     }
     if (receive_status != HAL_OK)
     {
       Debug_Log("(module went quiet, re-arming)");
+      (void)RN2483_StopReceive(resp, sizeof(resp));
       continue;
     }
 
