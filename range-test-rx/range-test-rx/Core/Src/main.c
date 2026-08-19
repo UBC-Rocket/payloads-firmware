@@ -35,9 +35,12 @@
 /* USER CODE BEGIN PD */
 #define RN2483_BAUDRATE      57600U
 #define RN2483_RESP_TIMEOUT  1000U   /* ms, for the immediate command response */
-#define RN2483_RX_WDT_MS     2000U   /* short slices keep serial commands responsive */
+#define RN2483_RX_WDT_MS     4000U   /* lets a late SF12 packet finish */
+#define RN2483_RX_RESULT_TIMEOUT_MS (RN2483_RX_WDT_MS + 1000U)
 #define RN2483_RX_COMMAND    "radio rx 50" /* ~1.64 s at SF12/BW125 */
 #define RN2483_TX_TIMEOUT_MS 10000U
+#define RN2483_FLUSH_TIMEOUT_MS 250U
+#define RN2483_MAX_SYNC_FAILURES 2U
 #define SERIAL_COMMAND_SIZE  16U
 #define SERIAL_QUEUE_DEPTH   2U
 #define SILENCE_LOG_MS       15000U
@@ -62,6 +65,7 @@ static volatile char serial_input[SERIAL_COMMAND_SIZE];
 static volatile uint8_t serial_input_length;
 static volatile bool serial_command_discarding;
 static volatile bool serial_command_overflow;
+static volatile bool serial_rx_fault;
 static volatile char serial_queue[SERIAL_QUEUE_DEPTH][SERIAL_COMMAND_SIZE];
 static volatile uint8_t serial_queue_length[SERIAL_QUEUE_DEPTH];
 static volatile uint8_t serial_queue_head;
@@ -69,6 +73,7 @@ static volatile uint8_t serial_queue_tail;
 static volatile uint8_t serial_queue_count;
 static bool ping_waiting;
 static uint32_t ping_started_ms;
+static uint32_t last_silence_log_ms;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -81,11 +86,14 @@ static void RN2483_UART_Init(void);
 static void RN2483_Flush(void);
 static HAL_StatusTypeDef RN2483_ReadLine(char *buf, uint16_t size, uint32_t timeout);
 static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t size, uint32_t timeout);
-static void RN2483_CommandChecked(const char *cmd);
+static bool RN2483_CommandChecked(const char *cmd, const char *expected);
+static void RN2483_Initialize(void);
 static HAL_StatusTypeDef RN2483_TransmitText(const char *text, char *detail, uint16_t detail_size);
 static void Serial_Command_Init(void);
 static bool Serial_TakeCommand(char *command, uint16_t command_size);
 static int Hex_Nibble(char c);
+static bool Text_IsUnsignedNonzero(const char *text);
+static bool Text_IsSignedDecimal(const char *text);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -140,7 +148,9 @@ static void RN2483_UART_Init(void)
 static void RN2483_Flush(void)
 {
   uint8_t c;
-  while (HAL_UART_Receive(&huart1, &c, 1, 50) == HAL_OK)
+  const uint32_t started_ms = HAL_GetTick();
+  while ((HAL_GetTick() - started_ms) < RN2483_FLUSH_TIMEOUT_MS &&
+         HAL_UART_Receive(&huart1, &c, 1, 10U) == HAL_OK)
   {
   }
 }
@@ -153,6 +163,11 @@ static HAL_StatusTypeDef RN2483_ReadLine(char *buf,
                                          uint16_t size,
                                          uint32_t timeout)
 {
+  if (buf == NULL || size < 2U)
+  {
+    return HAL_ERROR;
+  }
+
   uint32_t start = HAL_GetTick();
   uint16_t len = 0;
 
@@ -190,24 +205,213 @@ static HAL_StatusTypeDef RN2483_ReadLine(char *buf,
   */
 static HAL_StatusTypeDef RN2483_Command(const char *cmd, char *resp, uint16_t size, uint32_t timeout)
 {
-  HAL_UART_Transmit(&huart1, (uint8_t *)cmd, (uint16_t)strlen(cmd), 100);
-  HAL_UART_Transmit(&huart1, (uint8_t *)"\r\n", 2, 100);
+  char wire_command[96];
+  if (cmd == NULL || resp == NULL || size < 2U)
+  {
+    return HAL_ERROR;
+  }
+  resp[0] = '\0';
+
+  const size_t command_length = strlen(cmd);
+  if (command_length == 0U || command_length + 2U > sizeof(wire_command))
+  {
+    return HAL_ERROR;
+  }
+  memcpy(wire_command, cmd, command_length);
+  wire_command[command_length] = '\r';
+  wire_command[command_length + 1U] = '\n';
+
+  if (HAL_UART_Transmit(&huart1,
+                        (uint8_t *)wire_command,
+                        (uint16_t)(command_length + 2U),
+                        100U) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
   return RN2483_ReadLine(resp, size, timeout);
 }
 
 /**
-  * @brief Send a command that must answer "ok"; hang in Error_Handler otherwise.
+  * @brief Send one initialization command and validate its exact response.
   */
-static void RN2483_CommandChecked(const char *cmd)
+static bool RN2483_CommandChecked(const char *cmd, const char *expected)
 {
   char resp[32];
-
-  if (RN2483_Command(cmd, resp, sizeof(resp), RN2483_RESP_TIMEOUT) != HAL_OK ||
-      strcmp(resp, "ok") != 0)
+  if (RN2483_Command(cmd, resp, sizeof(resp), RN2483_RESP_TIMEOUT) == HAL_OK &&
+      strcmp(resp, expected) == 0)
   {
-    Debug_Log("ERROR: radio config command rejected:");
-    Debug_Log(cmd);
-    Error_Handler();
+    return true;
+  }
+
+  char out[128];
+  snprintf(out, sizeof(out),
+           "BRIDGE RADIO CONFIG FAILED cmd=\"%.48s\" response=\"%.31s\"",
+           cmd,
+           resp[0] == '\0' ? "timeout/write_error" : resp);
+  Debug_Log(out);
+  return false;
+}
+
+static bool Text_IsUnsignedNonzero(const char *text)
+{
+  if (text == NULL || text[0] == '\0')
+  {
+    return false;
+  }
+
+  bool nonzero = false;
+  for (size_t index = 0U; text[index] != '\0'; index++)
+  {
+    if (text[index] < '0' || text[index] > '9')
+    {
+      return false;
+    }
+    nonzero = nonzero || text[index] != '0';
+  }
+  return nonzero;
+}
+
+static bool Text_IsSignedDecimal(const char *text)
+{
+  if (text == NULL || text[0] == '\0')
+  {
+    return false;
+  }
+
+  size_t index = text[0] == '-' ? 1U : 0U;
+  if (text[index] == '\0')
+  {
+    return false;
+  }
+  for (; text[index] != '\0'; index++)
+  {
+    if (text[index] < '0' || text[index] > '9')
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+  * @brief Reset and configure the separately-powered RN2483.
+  *        This routine retries instead of leaving the bridge permanently in
+  *        Error_Handler after a transient or stale module response.
+  */
+static void RN2483_Initialize(void)
+{
+  static const struct
+  {
+    const char *command;
+    const char *expected;
+  } fixed_commands[] = {
+    {"radio set mod lora", "ok"},
+    {"radio set freq 433575000", "ok"},
+    {"radio set sf sf12", "ok"},
+    {"radio set bw 125", "ok"},
+    {"radio set cr 4/5", "ok"},
+    {"radio set crc on", "ok"},
+    {"radio set iqi off", "ok"},
+    {"radio set prlen 8", "ok"},
+    {"radio set sync 34", "ok"},
+    {"radio set pwr 14", "ok"},
+    {"radio get mod", "lora"},
+    {"radio get freq", "433575000"},
+    {"radio get sf", "sf12"},
+    {"radio get bw", "125"},
+    {"radio get cr", "4/5"},
+    {"radio get crc", "on"},
+    {"radio get iqi", "off"},
+    {"radio get prlen", "8"},
+    {"radio get sync", "34"},
+    {"radio get pwr", "14"},
+  };
+  char response[64];
+  char watchdog_command[32];
+  char watchdog_expected[16];
+  char out[128];
+  uint32_t attempt = 0U;
+
+  snprintf(watchdog_command,
+           sizeof(watchdog_command),
+           "radio set wdt %lu",
+           (unsigned long)RN2483_RX_WDT_MS);
+  snprintf(watchdog_expected,
+           sizeof(watchdog_expected),
+           "%lu",
+           (unsigned long)RN2483_RX_WDT_MS);
+
+  for (;;)
+  {
+    attempt++;
+    RN2483_Flush();
+    const HAL_StatusTypeDef reset_status =
+        RN2483_Command("sys reset",
+                       response,
+                       sizeof(response),
+                       RN2483_RX_RESULT_TIMEOUT_MS);
+    if (reset_status != HAL_OK || strncmp(response, "RN2483 ", 7U) != 0)
+    {
+      snprintf(out, sizeof(out),
+               "BRIDGE RADIO INIT RETRY %lu reset_response=\"%.63s\"",
+               (unsigned long)attempt,
+               response[0] == '\0' ? "timeout/write_error" : response);
+      Debug_Log(out);
+      HAL_Delay(1000U);
+      continue;
+    }
+
+    snprintf(out, sizeof(out), "module reset: %.75s", response);
+    Debug_Log(out);
+    if (RN2483_Command("mac pause",
+                       response,
+                       sizeof(response),
+                       RN2483_RESP_TIMEOUT) != HAL_OK ||
+        !Text_IsUnsignedNonzero(response))
+    {
+      snprintf(out, sizeof(out),
+               "BRIDGE RADIO INIT RETRY %lu mac_pause=\"%.63s\"",
+               (unsigned long)attempt,
+               response[0] == '\0' ? "timeout/write_error" : response);
+      Debug_Log(out);
+      HAL_Delay(1000U);
+      continue;
+    }
+
+    bool configured = true;
+    for (size_t index = 0U;
+         index < sizeof(fixed_commands) / sizeof(fixed_commands[0]);
+         index++)
+    {
+      if (!RN2483_CommandChecked(fixed_commands[index].command,
+                                 fixed_commands[index].expected))
+      {
+        configured = false;
+        break;
+      }
+    }
+    if (configured &&
+        !RN2483_CommandChecked(watchdog_command, "ok"))
+    {
+      configured = false;
+    }
+    if (configured &&
+        !RN2483_CommandChecked("radio get wdt", watchdog_expected))
+    {
+      configured = false;
+    }
+
+    if (configured)
+    {
+      Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
+      return;
+    }
+
+    snprintf(out, sizeof(out),
+             "BRIDGE RADIO INIT RETRY %lu configuration rejected",
+             (unsigned long)attempt);
+    Debug_Log(out);
+    HAL_Delay(1000U);
   }
 }
 
@@ -221,13 +425,14 @@ static HAL_StatusTypeDef RN2483_TransmitText(const char *text,
 {
   static const char hex_digits[] = "0123456789ABCDEF";
   char command[80] = "radio tx ";
-  const size_t prefix_length = strlen(command);
-  const size_t text_length = strlen(text);
-
-  if (detail == NULL || detail_size == 0U)
+  if (text == NULL || detail == NULL || detail_size == 0U)
   {
     return HAL_ERROR;
   }
+
+  const size_t prefix_length = strlen(command);
+  const size_t text_length = strlen(text);
+
   detail[0] = '\0';
 
   if (text_length == 0U ||
@@ -245,11 +450,19 @@ static HAL_StatusTypeDef RN2483_TransmitText(const char *text,
   }
   command[prefix_length + (text_length * 2U)] = '\0';
 
-  if (RN2483_Command(command, detail, detail_size,
-                     RN2483_RESP_TIMEOUT) != HAL_OK)
+  const HAL_StatusTypeDef command_status =
+      RN2483_Command(command,
+                     detail,
+                     detail_size,
+                     RN2483_RESP_TIMEOUT);
+  if (command_status != HAL_OK)
   {
-    snprintf(detail, detail_size, "immediate_timeout");
-    return HAL_TIMEOUT;
+    snprintf(detail,
+             detail_size,
+             command_status == HAL_TIMEOUT
+                 ? "immediate_timeout"
+                 : "command_write_error");
+    return command_status;
   }
   if (strcmp(detail, "ok") != 0)
   {
@@ -273,6 +486,7 @@ static void Serial_Command_Init(void)
   serial_input_length = 0U;
   serial_command_discarding = false;
   serial_command_overflow = false;
+  serial_rx_fault = false;
   serial_queue_head = 0U;
   serial_queue_tail = 0U;
   serial_queue_count = 0U;
@@ -368,7 +582,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
   }
 
-  (void)HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U);
+  if (HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U) != HAL_OK)
+  {
+    serial_rx_fault = true;
+  }
 }
 
 /**
@@ -378,7 +595,7 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
   if (huart == &huart2)
   {
-    (void)HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U);
+    serial_rx_fault = true;
   }
 }
 
@@ -429,112 +646,7 @@ int main(void)
   Debug_Log("range-test RX: booting");
 
   RN2483_UART_Init();
-
-  /* The RN2483 is powered separately, so an MCU reset does not necessarily
-     end the module's current operation.  A documented system reset gives the
-     bridge a known idle module before applying the raw-radio configuration. */
-  {
-    char reset_banner[64];
-    RN2483_Flush();
-    if (RN2483_Command("sys reset",
-                       reset_banner,
-                       sizeof(reset_banner),
-                       RN2483_RX_WDT_MS + 1000U) == HAL_OK)
-    {
-      char reset_log[96];
-      snprintf(reset_log, sizeof(reset_log), "module reset: %.75s", reset_banner);
-      Debug_Log(reset_log);
-    }
-    else
-    {
-      Debug_Log("module reset response timeout; probing module");
-    }
-    HAL_Delay(100U);
-    RN2483_Flush();
-  }
-
-  /* Pause the LoRaWAN stack so raw "radio" commands can be used.
-     The reply is the pause duration in ms, not "ok".
-     Retries forever; on each failure it probes the module and reports the raw
-     bytes received (if any) so wiring vs. baud problems can be told apart. */
-  {
-    char resp[48];
-    char dbg[96];
-    uint8_t raw[16];
-    uint32_t attempt = 0;
-
-    for (;;)
-    {
-      const HAL_StatusTypeDef pause_status =
-          RN2483_Command("mac pause", resp, sizeof(resp), RN2483_RESP_TIMEOUT);
-      bool pause_reply_valid =
-          (pause_status == HAL_OK && resp[0] != '\0' && strcmp(resp, "0") != 0);
-
-      for (size_t index = 0U; pause_reply_valid && resp[index] != '\0'; index++)
-      {
-        if (resp[index] < '0' || resp[index] > '9')
-        {
-          pause_reply_valid = false;
-        }
-      }
-
-      if (pause_reply_valid)
-      {
-        snprintf(dbg, sizeof(dbg), "RN2483 alive (mac pause -> %s)", resp);
-        Debug_Log(dbg);
-        if (RN2483_Command("sys get ver", resp, sizeof(resp), RN2483_RESP_TIMEOUT) == HAL_OK)
-        {
-          snprintf(dbg, sizeof(dbg), "module firmware: %s", resp);
-          Debug_Log(dbg);
-        }
-
-        break;
-      }
-
-      attempt++;
-      HAL_UART_Transmit(&huart1, (uint8_t *)"sys get ver\r\n", 13, 100);
-      uint16_t n = 0;
-      uint32_t t0 = HAL_GetTick();
-      while (n < sizeof(raw) && (HAL_GetTick() - t0) < 1000U)
-      {
-        if (HAL_UART_Receive(&huart1, &raw[n], 1, 10) == HAL_OK)
-        {
-          n++;
-        }
-      }
-
-      if (n == 0)
-      {
-        snprintf(dbg, sizeof(dbg), "attempt %lu: RX totally silent - check TX/RX crossover and module power",
-                 (unsigned long)attempt);
-      }
-      else
-      {
-        int pos = snprintf(dbg, sizeof(dbg), "attempt %lu: %u raw bytes:", (unsigned long)attempt, n);
-        for (uint16_t i = 0; i < n && pos < (int)sizeof(dbg) - 4; i++)
-        {
-          pos += snprintf(&dbg[pos], sizeof(dbg) - (size_t)pos, " %02X", raw[i]);
-        }
-      }
-      Debug_Log(dbg);
-    }
-  }
-
-  /* Radio settings - MUST match the transmitter exactly. */
-  RN2483_CommandChecked("radio set mod lora");
-  RN2483_CommandChecked("radio set freq 433575000"); /* 433 band - matches the antennas */
-  RN2483_CommandChecked("radio set sf sf12");
-  RN2483_CommandChecked("radio set bw 125");
-  RN2483_CommandChecked("radio set cr 4/5");
-  RN2483_CommandChecked("radio set crc on");
-  RN2483_CommandChecked("radio set iqi off");
-  RN2483_CommandChecked("radio set prlen 8");
-  RN2483_CommandChecked("radio set sync 34");
-  RN2483_CommandChecked("radio set pwr 14");
-  /* Watchdog: each listen window ends with radio_err after this many ms,
-     so the loop stays alive and can re-arm even if nothing is heard. */
-  RN2483_CommandChecked("radio set wdt 2000");
-  Debug_Log("radio configured: 433.575 MHz, SF12/BW125/CR4/5, sync 34");
+  RN2483_Initialize();
   Debug_Log("bridge serial ready: PUMP_TOGGLE, PUMP_RUN_6_5, LED_ON/OFF, or PING");
   /* USER CODE END 2 */
 
@@ -546,14 +658,35 @@ int main(void)
     char line[160];
     char out[160];
     char serial_line[SERIAL_COMMAND_SIZE];
-    static uint32_t last_silence_log_ms = 0U;
+    static uint8_t radio_sync_failures = 0U;
 
-    if (serial_command_overflow)
+    __disable_irq();
+    const bool command_was_dropped = serial_command_overflow;
+    serial_command_overflow = false;
+    const bool serial_receive_failed = serial_rx_fault;
+    serial_rx_fault = false;
+    __enable_irq();
+
+    if (command_was_dropped)
     {
-      __disable_irq();
-      serial_command_overflow = false;
-      __enable_irq();
       Debug_Log("BRIDGE SERIAL ERROR input dropped");
+    }
+
+    if (serial_receive_failed)
+    {
+      (void)HAL_UART_AbortReceive(&huart2);
+      if (HAL_UART_Receive_IT(&huart2, &serial_rx_byte, 1U) == HAL_OK)
+      {
+        Debug_Log("BRIDGE SERIAL RX recovered");
+      }
+      else
+      {
+        __disable_irq();
+        serial_rx_fault = true;
+        __enable_irq();
+        Debug_Log("BRIDGE SERIAL RX recovery failed");
+        HAL_Delay(100U);
+      }
     }
 
     if (ping_waiting &&
@@ -668,44 +801,63 @@ int main(void)
                        resp,
                        sizeof(resp),
                        RN2483_RESP_TIMEOUT);
-    if (arm_status != HAL_OK || strcmp(resp, "ok") != 0)
+    HAL_StatusTypeDef receive_status = HAL_ERROR;
+    if (arm_status == HAL_OK && strcmp(resp, "ok") == 0)
     {
-      if (arm_status == HAL_OK && strcmp(resp, "busy") == 0)
+      receive_status = RN2483_ReadLine(line,
+                                       sizeof(line),
+                                       RN2483_RX_RESULT_TIMEOUT_MS);
+    }
+    else if (arm_status == HAL_OK && strcmp(resp, "busy") == 0)
+    {
+      /* A prior operation is still active. Drain and process its terminal
+         response; it can be a real packet (including PONG), not just an error. */
+      Debug_Log("BRIDGE RADIO BUSY; draining current operation");
+      receive_status = RN2483_ReadLine(line,
+                                       sizeof(line),
+                                       RN2483_RX_RESULT_TIMEOUT_MS);
+    }
+    else
+    {
+      snprintf(out, sizeof(out), "'%s' refused (%s)",
+               RN2483_RX_COMMAND,
+               arm_status == HAL_OK && resp[0] != '\0'
+                   ? resp
+                   : "timeout/write_error");
+      Debug_Log(out);
+      radio_sync_failures++;
+    }
+
+    if (receive_status != HAL_OK)
+    {
+      if (arm_status == HAL_OK &&
+          (strcmp(resp, "ok") == 0 || strcmp(resp, "busy") == 0))
       {
-        /* Drain the terminal response from the already-running operation.
-           This wait also prevents a busy response from becoming a tight log
-           and command loop. */
-        Debug_Log("BRIDGE RADIO BUSY; waiting for current operation");
-        if (RN2483_ReadLine(line,
-                            sizeof(line),
-                            RN2483_RX_WDT_MS + 2000U) != HAL_OK)
+        Debug_Log("BRIDGE RADIO result timeout");
+        radio_sync_failures++;
+      }
+
+      if (radio_sync_failures >= RN2483_MAX_SYNC_FAILURES)
+      {
+        Debug_Log("BRIDGE RADIO RECOVERY reinitializing module");
+        if (ping_waiting)
         {
-          Debug_Log("BRIDGE RADIO BUSY wait timed out");
+          ping_waiting = false;
+          Debug_Log("BRIDGE PING TIMEOUT radio_recovery");
         }
+        RN2483_Initialize();
+        radio_sync_failures = 0U;
       }
       else
       {
-        snprintf(out, sizeof(out), "'%s' refused (%s)",
-                 RN2483_RX_COMMAND,
-                 arm_status == HAL_OK ? resp : "timeout");
-        Debug_Log(out);
         HAL_Delay(100U);
       }
       continue;
     }
 
-    /* A serial command received here remains queued until this short window
-       ends, then is transmitted at the top of the next loop iteration. */
-    const HAL_StatusTypeDef receive_status =
-        RN2483_ReadLine(line, sizeof(line), RN2483_RX_WDT_MS + 2000U);
-    if (receive_status != HAL_OK)
-    {
-      Debug_Log("(module went quiet, re-arming)");
-      HAL_Delay(20U);
-      continue;
-    }
+    radio_sync_failures = 0U;
 
-    if (strncmp(line, "radio_rx", 8) == 0)
+    if (strncmp(line, "radio_rx", 8U) == 0 && line[8] == ' ')
     {
       /* Format: "radio_rx  <hex payload>" - decode the hex into text. */
       const char *hex = &line[8];
@@ -716,12 +868,19 @@ int main(void)
 
       char text[64];
       uint16_t tlen = 0;
-      while (hex[0] != '\0' && hex[1] != '\0' && tlen < sizeof(text) - 1U)
+      bool payload_valid = hex[0] != '\0';
+      while (payload_valid && hex[0] != '\0')
       {
+        if (hex[1] == '\0' || tlen >= sizeof(text) - 1U)
+        {
+          payload_valid = false;
+          break;
+        }
         int hi = Hex_Nibble(hex[0]);
         int lo = Hex_Nibble(hex[1]);
         if (hi < 0 || lo < 0)
         {
+          payload_valid = false;
           break;
         }
         char c = (char)((hi << 4) | lo);
@@ -729,6 +888,14 @@ int main(void)
         hex += 2;
       }
       text[tlen] = '\0';
+      if (!payload_valid)
+      {
+        snprintf(out, sizeof(out),
+                 "BRIDGE RADIO RX MALFORMED %.128s",
+                 line);
+        Debug_Log(out);
+        continue;
+      }
       const uint32_t packet_received_ms = HAL_GetTick();
 
       /* Signal quality of this packet - the actual range-test measurement.
@@ -737,9 +904,19 @@ int main(void)
          falls back to "?" on older firmware). */
       char snr[16] = "?";
       char rssi[16] = "?";
-      RN2483_Command("radio get snr", snr, sizeof(snr), RN2483_RESP_TIMEOUT);
-      RN2483_Command("radio get rssi", rssi, sizeof(rssi), RN2483_RESP_TIMEOUT);
-      if (!(rssi[0] == '-' || (rssi[0] >= '0' && rssi[0] <= '9')))
+      if (RN2483_Command("radio get snr",
+                         snr,
+                         sizeof(snr),
+                         RN2483_RESP_TIMEOUT) != HAL_OK ||
+          !Text_IsSignedDecimal(snr))
+      {
+        strcpy(snr, "?");
+      }
+      if (RN2483_Command("radio get rssi",
+                         rssi,
+                         sizeof(rssi),
+                         RN2483_RESP_TIMEOUT) != HAL_OK ||
+          !Text_IsSignedDecimal(rssi))
       {
         strcpy(rssi, "?");
       }

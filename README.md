@@ -139,16 +139,19 @@ The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
 ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated
 `PUMP_TOGGLE`, `PUMP_RUN_6_5`, `LED_ON`, `LED_OFF`, and `PING` lines from
 `range-monitor.html`. Reception is interrupt-driven,
-so commands are retained while the RN2483 is listening. A queued command stops
-the current receive slice, then the bridge converts it to a raw-LoRa hex
-payload. LED commands are transmitted three times with the same
+so commands are retained while the RN2483 is listening. The bridge uses bounded
+50-symbol receive windows; a queued command waits for the current window to
+finish, then the bridge converts it to a raw-LoRa hex payload. It never sends an
+unsupported receive-stop command. LED commands are transmitted three times with the same
 SF12/BW125/CR4/5/sync-0x34 profile; `PUMP_TOGGLE`, `PUMP_RUN_6_5`, and `PING`
 are transmitted once. The bridge waits for each `radio_tx_ok` and returns to
 receive mode. Ping success is only
 reported after the payload returns `PONG`. `BRIDGE SERIAL RX ...` confirms the
 browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
 RN2483 completed all transmissions (it is not an acknowledgement from the
-payload).
+payload). On repeated command/response synchronization failures, the bridge
+resets, reapplies, and reads back the RN2483 configuration instead of entering a
+tight retry loop or permanently halting.
 
 SPI2 is configured in the `.ioc` for eight-bit SPI mode 0 at 250 kHz with
 software-controlled chip select. PA4 is an initially-high `SD_CS` GPIO, and
