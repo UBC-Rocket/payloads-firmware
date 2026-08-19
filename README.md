@@ -75,7 +75,7 @@ Replace the example values with the transmitter's spreading factor, bandwidth,
 coding-rate denominator, and sync byte. The frequency can still be overridden
 with `-DRN2483_RADIO_FREQ_HZ` when needed. Flashable ELF, HEX, and BIN images are
 written under `build/Debug/`; updating only the radio bridge does not update the
-payload-side `BUMP` parser or deadline timer.
+payload-side pump command handling or deadline timer.
 
 ## Runtime behavior
 
@@ -105,8 +105,7 @@ payload-side `BUMP` parser or deadline timer.
   cards are retried every five seconds while acquisition continues. On each
   pump off-to-on transition, queued pre-pump records are flushed to the current
   file and logging continues in the first free `EXP0000.CSV` through
-  `EXP9999.CSV`. Repeated `PUMP_ON` packets while the pump is already on do not
-  create extra files.
+  `EXP9999.CSV`.
 - USART2 uses the RN2483 default of 57600 baud. Startup sends the RN2483 break
   and `0x55` synchronization sequence, pauses the MAC, applies and reads back the
   required raw-LoRa profile at 433575000 Hz, then enters continuous receive
@@ -123,12 +122,11 @@ payload-side `BUMP` parser or deadline timer.
   raw count, validity, counters, and I2C3 bus number; failed reads print
   `UV read` diagnostics. The range monitor displays these lines without special
   parsing.
-- `PUMP_ON` and `PUMP_OFF` independently control the PD2 pump output.
-  `BUMP <seconds>` turns the pump on for 1 through 3600 seconds, then
-  turns it off without blocking sensor acquisition, logging, or radio work.
-  The duration may be an integer or have exactly one decimal digit, such as
-  `BUMP 5` or `BUMP 5.5`; the command remains plain ASCII over the radio.
-  A later `PUMP_ON`, `PUMP_OFF`, or `BUMP` supersedes the active bump timer.
+- `PUMP_TOGGLE` reverses the current PD2 pump output and cancels any active
+  timed run. `PUMP_RUN_6_5` turns the pump on and schedules an interrupt-driven
+  cutoff after `PUMP_RUN_DURATION_MS` (defined in `Core/Inc/pump_timer.h`)
+  without blocking sensor acquisition, logging, or radio work. Sending
+  `PUMP_RUN_6_5` again restarts that deadline.
   `LED_ON` and `LED_OFF` independently control the PD1 LED output; PWM commands
   are not accepted. `PING` leaves both outputs unchanged and replies with
   `PONG`. These are the only accepted radio
@@ -138,16 +136,15 @@ payload-side `BUMP` parser or deadline timer.
   forced low by `Error_Handler`.
 
 The STM32F103 ground bridge lives under `range-test-rx/range-test-rx`. Its
-ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated `PUMP_ON`,
-`PUMP_OFF`, `BUMP <seconds>`, `LED_ON`, `LED_OFF`, and `PING` lines from
+ST-Link VCP uses USART2 at 115200 baud and accepts CR/LF-terminated
+`PUMP_TOGGLE`, `PUMP_RUN_6_5`, `LED_ON`, `LED_OFF`, and `PING` lines from
 `range-monitor.html`. Reception is interrupt-driven,
 so commands are retained while the RN2483 is listening. A queued command stops
 the current receive slice, then the bridge converts it to a raw-LoRa hex
-payload. Output commands are transmitted three times with the same
-SF12/BW125/CR4/5/sync-0x34
-profile; `BUMP` and `PING` are transmitted once. The bridge waits for each `radio_tx_ok`
-and returns to receive mode. Repetition gives each idempotent output command extra
-link margin without restarting a timed bump. Ping success is only
+payload. LED commands are transmitted three times with the same
+SF12/BW125/CR4/5/sync-0x34 profile; `PUMP_TOGGLE`, `PUMP_RUN_6_5`, and `PING`
+are transmitted once. The bridge waits for each `radio_tx_ok` and returns to
+receive mode. Ping success is only
 reported after the payload returns `PONG`. `BRIDGE SERIAL RX ...` confirms the
 browser line reached the F103; `BRIDGE RADIO TX ... OK` confirms the bridge's
 RN2483 completed all transmissions (it is not an acknowledgement from the
@@ -203,8 +200,8 @@ For output-command troubleshooting, connect a 115200-baud adapter to USART1 TX
 (PA9) and watch the `RADIO` lines. `ready=1 phase=2` means the RN2483 is
 listening. If `lines` does not change, no module response or packet reached the
 firmware. Increasing `badpkt` means LoRa data arrived with the wrong payload;
-increasing `valid` followed by `EVENT PUMP_ON applied pump=1`,
-`EVENT BUMP applied pump=1 seconds=...`, or
+increasing `valid` followed by `EVENT PUMP_TOGGLE applied pump=...`,
+`EVENT PUMP_RUN_6_5 applied pump=1 duration_ms=6500`, or
 `EVENT LED_ON applied led=100` proves the command was decoded and the requested
 output was driven high. The browser's serial write still requires the connected
 ground bridge to convert the command into an LoRa transmission.

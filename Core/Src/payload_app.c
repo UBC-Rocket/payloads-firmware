@@ -87,8 +87,8 @@ static uint32_t debug_next_status_ms;
 static uint32_t radio_reported_invalid_packets;
 static uint32_t ping_reply_at_ms;
 static bool ping_reply_pending;
-static pump_timer_t pump_bump_timer;
-static volatile bool pump_bump_completion_pending;
+static pump_timer_t pump_run_timer;
+static volatile bool pump_run_completion_pending;
 
 static uint32_t uv_next_poll_ms;
 static uint32_t uv_retry_at_ms;
@@ -465,54 +465,45 @@ static void process_radio(uint32_t now_ms)
 
     rn2483_event_t event;
     while ((event = rn2483_take_event(&radio)) != RN2483_EVENT_NONE) {
-        if (event == RN2483_EVENT_PUMP_ON) {
-            pump_timer_cancel(&pump_bump_timer);
-            const bool pump_was_on = payload_pump_on;
-            set_pump(true);
-            if (!pump_was_on) {
+        if (event == RN2483_EVENT_PUMP_TOGGLE) {
+            pump_timer_cancel(&pump_run_timer);
+            const bool pump_turning_on = !payload_pump_on;
+            set_pump(pump_turning_on);
+            if (pump_turning_on) {
                 sd_logger_begin_experiment(&logger, now_ms);
-                debug_transmit(
-                    "EVENT PUMP_ON applied pump=1 log=EXP\r\n");
-            } else {
-                debug_transmit(
-                    "EVENT PUMP_ON applied pump=1 log=unchanged\r\n");
             }
-        } else if (event == RN2483_EVENT_PUMP_OFF) {
-            pump_timer_cancel(&pump_bump_timer);
-            set_pump(false);
-            debug_transmit("EVENT PUMP_OFF applied pump=0\r\n");
+            char line[DEBUG_LINE_SIZE];
+            const int length = snprintf(
+                line,
+                sizeof(line),
+                "EVENT PUMP_TOGGLE applied pump=%u log=%s\r\n",
+                pump_turning_on ? 1U : 0U,
+                pump_turning_on ? "EXP" : "unchanged");
+            if (length > 0 && (size_t)length < sizeof(line)) {
+                debug_transmit(line);
+            }
         } else if (event == RN2483_EVENT_LED_ON) {
             set_led_pwm(100U);
             debug_transmit("EVENT LED_ON applied led=100\r\n");
         } else if (event == RN2483_EVENT_LED_OFF) {
             set_led_pwm(0U);
             debug_transmit("EVENT LED_OFF applied led=0\r\n");
-        } else if (event == RN2483_EVENT_BUMP) {
-            const uint32_t duration_ms = rn2483_bump_duration_ms(&radio);
+        } else if (event == RN2483_EVENT_PUMP_RUN_6_5) {
             const bool pump_was_on = payload_pump_on;
-            pump_timer_start(&pump_bump_timer, now_ms, duration_ms);
+            pump_timer_start(&pump_run_timer,
+                             now_ms,
+                             PUMP_RUN_DURATION_MS);
             set_pump(true);
             if (!pump_was_on) {
                 sd_logger_begin_experiment(&logger, now_ms);
             }
-
             char line[DEBUG_LINE_SIZE];
-            const uint32_t whole_seconds = duration_ms / 1000U;
-            const uint32_t fractional_tenth = (duration_ms % 1000U) / 100U;
-            const int length = fractional_tenth == 0U
-                ? snprintf(
-                      line,
-                      sizeof(line),
-                      "EVENT BUMP applied pump=1 seconds=%lu log=%s\r\n",
-                      (unsigned long)whole_seconds,
-                      pump_was_on ? "unchanged" : "EXP")
-                : snprintf(
-                      line,
-                      sizeof(line),
-                      "EVENT BUMP applied pump=1 seconds=%lu.%lu log=%s\r\n",
-                      (unsigned long)whole_seconds,
-                      (unsigned long)fractional_tenth,
-                      pump_was_on ? "unchanged" : "EXP");
+            const int length = snprintf(
+                line,
+                sizeof(line),
+                "EVENT PUMP_RUN_6_5 applied pump=1 duration_ms=%lu log=%s\r\n",
+                (unsigned long)PUMP_RUN_DURATION_MS,
+                pump_was_on ? "unchanged" : "EXP");
             if (length > 0 && (size_t)length < sizeof(line)) {
                 debug_transmit(line);
             }
@@ -528,14 +519,14 @@ static void process_radio(uint32_t now_ms)
     payload_radio_ready = rn2483_is_ready(&radio);
 }
 
-static void process_pump_bump_completion(void)
+static void process_pump_run_completion(void)
 {
-    if (!pump_bump_completion_pending) {
+    if (!pump_run_completion_pending) {
         return;
     }
 
-    pump_bump_completion_pending = false;
-    debug_transmit("EVENT BUMP complete pump=0\r\n");
+    pump_run_completion_pending = false;
+    debug_transmit("EVENT PUMP_RUN_6_5 complete pump=0\r\n");
 }
 
 static void process_uv(uint32_t now_ms)
@@ -690,8 +681,8 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
     radio_reported_invalid_packets = 0U;
     ping_reply_at_ms = 0U;
     ping_reply_pending = false;
-    pump_timer_cancel(&pump_bump_timer);
-    pump_bump_completion_pending = false;
+    pump_timer_cancel(&pump_run_timer);
+    pump_run_completion_pending = false;
     set_pump(false);
     set_led_pwm(0U);
 
@@ -738,7 +729,7 @@ void payload_app_init(I2C_HandleTypeDef *i2c3,
         boot_line,
         sizeof(boot_line),
         "BOOT freq=%lu sf=%u bw=%u cr=4/%u sync=%02X bind=%u "
-        "autobaud=%u bump_timer=irq\r\n",
+        "autobaud=%u pump_run_timer=irq\r\n",
         (unsigned long)radio_config.frequency_hz,
         radio_config.spreading_factor,
         radio_config.bandwidth_khz,
@@ -757,7 +748,7 @@ void payload_app_process(void)
     const uint64_t now_extended_ms = monotonic_ms();
     const uint32_t now_ms = (uint32_t)now_extended_ms;
 
-    process_pump_bump_completion();
+    process_pump_run_completion();
     process_radio(now_ms);
     debug_radio_status(now_ms, false);
     process_uv(now_ms);
@@ -770,15 +761,15 @@ void payload_app_process(void)
 
 void payload_app_1ms_tick(uint32_t now_ms)
 {
-    if (!pump_timer_expire(&pump_bump_timer, now_ms)) {
+    if (!pump_timer_expire(&pump_run_timer, now_ms)) {
         return;
     }
 
     /* GPIO writes are bounded and safe here. Keeping this in the tick
        interrupt prevents SD-card initialization/sync delays from stretching a
-       requested BUMP duration. Debug output remains in the main loop. */
+       fixed run duration. Debug output remains in the main loop. */
     set_pump(false);
-    pump_bump_completion_pending = true;
+    pump_run_completion_pending = true;
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)

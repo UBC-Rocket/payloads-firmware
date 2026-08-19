@@ -27,7 +27,12 @@ int main(void)
     CHECK(pump_timer_expire(&timer, 2500U));
     CHECK(!pump_timer_expire(&timer, 2501U));
 
-    pump_timer_start(&timer, 5000U, 5500U);
+    CHECK(PUMP_RUN_DURATION_MS > 0U);
+    pump_timer_start(&timer, 5000U, PUMP_RUN_DURATION_MS);
+    CHECK(!pump_timer_expire(&timer, 5000U + PUMP_RUN_DURATION_MS - 1U));
+    CHECK(pump_timer_expire(&timer, 5000U + PUMP_RUN_DURATION_MS));
+
+    pump_timer_start(&timer, 5000U, PUMP_RUN_DURATION_MS);
     pump_timer_start(&timer, 6000U, 1250U);
     CHECK(!pump_timer_expire(&timer, 7249U));
     CHECK(pump_timer_expire(&timer, 7250U));

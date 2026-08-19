@@ -142,36 +142,37 @@ static void test_configuration_and_commands(void)
     configure_to_listening(&device, &fake, &now_ms);
 
     /* RN2483 1.0.4 places two spaces between radio_rx and the payload. */
-    feed_line(&device, "radio_rx  50554D505F4F4E");
+    feed_line(&device, "radio_rx  50554D505F544F47474C45");
     now_ms++;
     rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_ON);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_TOGGLE);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
-    CHECK(strcmp(device.last_line, "radio_rx  50554D505F4F4E") == 0);
+    CHECK(strcmp(device.last_line,
+                 "radio_rx  50554D505F544F47474C45") == 0);
     CHECK(strcmp(fake.last_command, "radio rx 0\r\n") == 0);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_is_ready(&device));
 
-    feed_line(&device, "radio_rx   50554D505F4F4646");
+    feed_line(&device, "radio_rx   50554D505F52554E5F365F35");
     now_ms++;
     rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_OFF);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_RUN_6_5);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
 
-    feed_line(&device, "radio_rx 50554D505F4F4E0D0A");
+    feed_line(&device, "radio_rx 50554D505F544F47474C450D0A");
     now_ms++;
     rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_ON);
+    CHECK(rn2483_take_event(&device) == RN2483_EVENT_PUMP_TOGGLE);
     CHECK(device.stats.valid_commands == 3U);
     feed_line(&device, "ok");
     now_ms++;
     rn2483_process(&device, now_ms);
 
-    feed_line(&device, "radio_rx 50554D505F4F4E00");
+    feed_line(&device, "radio_rx 50554D505F544F47474C4500");
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
@@ -199,44 +200,18 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
 
-    feed_line(&device, "radio_rx 42554D502035");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
-    CHECK(rn2483_bump_duration_ms(&device) == 5000U);
-    feed_line(&device, "ok");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-
-    feed_line(&device, "radio_rx 42554D5020312E35");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
-    CHECK(rn2483_bump_duration_ms(&device) == 1500U);
-    feed_line(&device, "ok");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-
-    feed_line(&device, "radio_rx 42554D5020333630300D0A");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-    CHECK(rn2483_take_event(&device) == RN2483_EVENT_BUMP);
-    CHECK(rn2483_bump_duration_ms(&device) ==
-          RN2483_BUMP_MAX_DURATION_MS);
-    feed_line(&device, "ok");
-    now_ms++;
-    rn2483_process(&device, now_ms);
-
-    const char *invalid_bumps[] = {
-        "radio_rx 42554D502030",
-        "radio_rx 42554D502033363031",
-        "radio_rx 42554D5020312E3535",
-        "radio_rx 42554D5020",
+    const char *retired_pump_commands[] = {
+        "radio_rx 50554D505F4F4E",
+        "radio_rx 50554D505F4F4646",
+        "radio_rx 42554D502035",
+        "radio_rx 42554D5020312E35",
+        "radio_rx 50554D505F52554E5F37",
     };
     for (size_t index = 0U;
-         index < sizeof(invalid_bumps) / sizeof(invalid_bumps[0]);
+         index < sizeof(retired_pump_commands) /
+                     sizeof(retired_pump_commands[0]);
          index++) {
-        feed_line(&device, invalid_bumps[index]);
+        feed_line(&device, retired_pump_commands[index]);
         now_ms++;
         rn2483_process(&device, now_ms);
         CHECK(rn2483_take_event(&device) == RN2483_EVENT_NONE);
@@ -250,8 +225,8 @@ static void test_configuration_and_commands(void)
     now_ms++;
     rn2483_process(&device, now_ms);
     CHECK(rn2483_take_event(&device) == RN2483_EVENT_PING);
-    CHECK(device.stats.valid_commands == 9U);
-    CHECK(device.stats.invalid_packets == 5U);
+    CHECK(device.stats.valid_commands == 6U);
+    CHECK(device.stats.invalid_packets == 6U);
     CHECK(fake.command_count == command_count_before_ping);
     CHECK(rn2483_send_text(&device, "PONG"));
 
@@ -282,7 +257,6 @@ static void test_validation_and_recovery(void)
         .sync_word = 0x12U,
     };
     rn2483_t device;
-    CHECK(rn2483_bump_duration_ms(NULL) == 0U);
     CHECK(rn2483_init(NULL, &transport, &config, 0U) ==
           RN2483_ERROR_ARGUMENT);
     config.frequency_hz = 915000000U;

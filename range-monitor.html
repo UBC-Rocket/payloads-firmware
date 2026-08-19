@@ -54,13 +54,6 @@
   button.primary { background: var(--series-snr); border-color: transparent; color: #fff; }
   button.danger { background: var(--bad); border-color: transparent; color: #fff; }
   button:disabled { opacity: 0.45; cursor: default; }
-  .duration-control { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); }
-  .duration-control input {
-    width: 68px; min-height: 32px; padding: 5px 6px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
-    font: inherit;
-  }
-  .duration-control input:disabled { opacity: 0.45; }
   .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 6px; }
   .status-dot.live { background: #0ca30c; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
@@ -104,12 +97,8 @@
   <span><span class="status-dot" id="dot"></span><span id="connState">disconnected</span></span>
   <button class="primary" id="btnConnect">Connect serial</button>
   <button id="btnPing" disabled>Ping payload</button>
-  <button id="btnPump" disabled>Turn pump on</button>
-  <label class="duration-control">
-    <input id="bumpSeconds" type="number" min="1" max="3600" step="0.1" value="5" aria-label="Bump duration in seconds" disabled>
-    <span>s</span>
-  </label>
-  <button id="btnBump" disabled>Run bump</button>
+  <button id="btnPump" disabled>Toggle pump</button>
+  <button id="btnPumpRun" disabled>Run pump for 6.5 s</button>
   <button id="btnLed" disabled>Turn LED on</button>
   <button id="btnDemo">Demo data</button>
   <button id="btnCsv" disabled>Export CSV</button>
@@ -203,31 +192,28 @@ function handleLine(raw) {
     const phase = parseInt(radioStatus[2], 10);
     $("tRadio").textContent = phaseNames[phase] || ("phase " + phase);
     pumpCommandedOn = radioStatus[3] === "1";
-    if (!pumpCommandedOn) stopPumpBumpCountdown(false);
+    if (!pumpCommandedOn) stopPumpRunCountdown(false);
     ledCommandedOn = parseInt(radioStatus[4], 10) > 0;
     updateOutputControls();
     addLog(raw, radioStatus[1] === "1" ? "rx" : "");
     return;
   }
 
-  const pumpEvent = raw.match(/^EVENT PUMP_(ON|OFF) applied pump=([01])/);
+  const pumpEvent = raw.match(/^EVENT PUMP_TOGGLE applied pump=([01])/);
   if (pumpEvent) {
-    stopPumpBumpCountdown(pumpEvent[2] === "1");
+    stopPumpRunCountdown(pumpEvent[1] === "1");
     addLog(raw, "rx");
     return;
   }
 
-  const bumpEvent = raw.match(
-    /^EVENT BUMP applied pump=1 seconds=(\d+(?:\.\d)?)/
-  );
-  if (bumpEvent) {
-    startPumpBumpCountdown(parseFloat(bumpEvent[1]));
+  if (raw.startsWith("EVENT PUMP_RUN_6_5 applied pump=1 duration_ms=6500")) {
+    startPumpRunCountdown();
     addLog(raw, "rx");
     return;
   }
 
-  if (raw.startsWith("EVENT BUMP complete pump=0")) {
-    stopPumpBumpCountdown(false);
+  if (raw.startsWith("EVENT PUMP_RUN_6_5 complete pump=0")) {
+    stopPumpRunCountdown(false);
     addLog(raw, "rx");
     return;
   }
@@ -282,19 +268,19 @@ function handleLine(raw) {
   }
 
   const bridgeResult = raw.match(
-    /^BRIDGE RADIO TX (PUMP_(?:ON|OFF)|LED_(?:ON|OFF)|PING|BUMP \d+(?:\.\d)?) (OK|FAILED)(?:\s|$)/
+    /^BRIDGE RADIO TX (PUMP_(?:TOGGLE|RUN_6_5)|LED_(?:ON|OFF)|PING) (OK|FAILED)(?:\s|$)/
   );
   if (bridgeResult) {
     if (bridgeResult[1] === "PING" && bridgeResult[2] === "OK") {
       $("tPing").textContent = "waiting";
     } else {
       if (bridgeResult[1] === "PING") $("tPing").textContent = "failed";
-      if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_ON") {
-        stopPumpBumpCountdown(true);
-      } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_OFF") {
-        stopPumpBumpCountdown(false);
-      } else if (bridgeResult[2] === "OK" && bridgeResult[1].startsWith("BUMP ")) {
-        startPumpBumpCountdown(parseFloat(bridgeResult[1].slice(5)));
+      if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_TOGGLE") {
+        stopPumpRunCountdown(
+          pumpCommandedOn === null ? undefined : !pumpCommandedOn
+        );
+      } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "PUMP_RUN_6_5") {
+        startPumpRunCountdown();
       } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_ON") {
         ledCommandedOn = true;
       } else if (bridgeResult[2] === "OK" && bridgeResult[1] === "LED_OFF") {
@@ -537,14 +523,14 @@ let pendingCommand = null;
 let commandTimer = null;
 let pumpCommandedOn = null;
 let ledCommandedOn = null;
-let pumpBumpEndsAt = null;
-let pumpBumpTimer = null;
+let pumpRunEndsAt = null;
+let pumpRunTimer = null;
 
 function updateOutputControls() {
-  $("btnPump").textContent = pumpCommandedOn === true ? "Turn pump off" : "Turn pump on";
+  $("btnPump").textContent = "Toggle pump";
   $("btnLed").textContent = ledCommandedOn === true ? "Turn LED off" : "Turn LED on";
-  if (pumpBumpEndsAt !== null) {
-    const remaining = Math.max(0, Math.ceil((pumpBumpEndsAt - Date.now()) / 1000));
+  if (pumpRunEndsAt !== null) {
+    const remaining = Math.max(0, Math.ceil((pumpRunEndsAt - Date.now()) / 1000));
     $("tPump").innerHTML = "ON<small> " + remaining + " s</small>";
   } else {
     $("tPump").textContent = pumpCommandedOn === null
@@ -556,21 +542,21 @@ function updateOutputControls() {
     : (ledCommandedOn ? "ON" : "OFF");
 }
 
-function stopPumpBumpCountdown(pumpOn) {
-  if (pumpBumpTimer) clearInterval(pumpBumpTimer);
-  pumpBumpTimer = null;
-  pumpBumpEndsAt = null;
+function stopPumpRunCountdown(pumpOn) {
+  if (pumpRunTimer) clearInterval(pumpRunTimer);
+  pumpRunTimer = null;
+  pumpRunEndsAt = null;
   if (pumpOn !== undefined) pumpCommandedOn = pumpOn;
   updateOutputControls();
 }
 
-function startPumpBumpCountdown(seconds) {
-  stopPumpBumpCountdown(true);
-  pumpBumpEndsAt = Date.now() + seconds * 1000;
+function startPumpRunCountdown() {
+  stopPumpRunCountdown(true);
+  pumpRunEndsAt = Date.now() + 6500;
   updateOutputControls();
-  pumpBumpTimer = setInterval(() => {
-    if (Date.now() >= pumpBumpEndsAt) {
-      stopPumpBumpCountdown(false);
+  pumpRunTimer = setInterval(() => {
+    if (Date.now() >= pumpRunEndsAt) {
+      stopPumpRunCountdown(false);
     } else {
       updateOutputControls();
     }
@@ -589,8 +575,7 @@ function finishPendingCommand(command) {
 function updateCommandButtons() {
   const enabled = serialConnected && port && port.writable && !commandPending;
   $("btnPump").disabled = !enabled;
-  $("btnBump").disabled = !enabled;
-  $("bumpSeconds").disabled = !enabled;
+  $("btnPumpRun").disabled = !enabled;
   $("btnLed").disabled = !enabled;
   $("btnPing").disabled = !enabled;
 }
@@ -689,25 +674,8 @@ $("btnPing").addEventListener("click", () => {
   $("tPing").textContent = "sending";
   sendSerialCommand("PING");
 });
-$("btnPump").addEventListener("click", () =>
-  sendSerialCommand(pumpCommandedOn === true ? "PUMP_OFF" : "PUMP_ON")
-);
-$("btnBump").addEventListener("click", () => {
-  const input = $("bumpSeconds");
-  const durationText = input.value.trim();
-  const seconds = Number(durationText);
-  const valid = /^\d+(?:\.\d)?$/.test(durationText) &&
-    Number.isFinite(seconds) && seconds >= 1 && seconds <= 3600;
-  input.setCustomValidity(valid ? "" : "Enter 1 to 3600 seconds with at most one decimal place.");
-  if (!valid) {
-    input.reportValidity();
-    return;
-  }
-  sendSerialCommand("BUMP " + durationText);
-});
-$("bumpSeconds").addEventListener("keydown", event => {
-  if (event.key === "Enter") $("btnBump").click();
-});
+$("btnPump").addEventListener("click", () => sendSerialCommand("PUMP_TOGGLE"));
+$("btnPumpRun").addEventListener("click", () => sendSerialCommand("PUMP_RUN_6_5"));
 $("btnLed").addEventListener("click", () =>
   sendSerialCommand(ledCommandedOn === true ? "LED_OFF" : "LED_ON")
 );

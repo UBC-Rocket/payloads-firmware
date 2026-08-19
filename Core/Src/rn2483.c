@@ -341,50 +341,6 @@ static bool decode_radio_payload(const char *line,
     return length > 0U;
 }
 
-static bool parse_bump_duration_ms(const char *payload, uint32_t *duration_ms)
-{
-    static const char prefix[] = "BUMP ";
-    if (payload == NULL || duration_ms == NULL ||
-        strncmp(payload, prefix, sizeof(prefix) - 1U) != 0) {
-        return false;
-    }
-
-    const char *cursor = payload + (sizeof(prefix) - 1U);
-    uint32_t whole_seconds = 0U;
-    size_t whole_digits = 0U;
-    while (*cursor >= '0' && *cursor <= '9') {
-        const uint32_t digit = (uint32_t)(*cursor - '0');
-        if (whole_seconds >
-            (RN2483_BUMP_MAX_SECONDS - digit) / 10U) {
-            return false;
-        }
-        whole_seconds = (whole_seconds * 10U) + digit;
-        whole_digits++;
-        cursor++;
-    }
-    if (whole_digits == 0U) {
-        return false;
-    }
-
-    uint32_t duration_tenths = whole_seconds * 10U;
-    if (*cursor == '.') {
-        cursor++;
-        if (*cursor < '0' || *cursor > '9' || cursor[1] != '\0') {
-            return false;
-        }
-        duration_tenths += (uint32_t)(*cursor - '0');
-        cursor++;
-    }
-
-    if (*cursor != '\0' ||
-        duration_tenths < (RN2483_BUMP_MIN_DURATION_MS / 100U) ||
-        duration_tenths > (RN2483_BUMP_MAX_DURATION_MS / 100U)) {
-        return false;
-    }
-    *duration_ms = duration_tenths * 100U;
-    return true;
-}
-
 static void handle_complete_line(rn2483_t *device,
                                  const char *line,
                                  uint32_t now_ms)
@@ -395,25 +351,19 @@ static void handle_complete_line(rn2483_t *device,
 
     if (device->phase == RN2483_PHASE_LISTENING) {
         char payload[(RN2483_LINE_SIZE / 2U) + 1U];
-        uint32_t bump_duration_ms = 0U;
         const bool payload_valid =
             decode_radio_payload(line, payload, sizeof(payload));
-        if (payload_valid && strcmp(payload, "PUMP_ON") == 0) {
-            device->pending_event = RN2483_EVENT_PUMP_ON;
+        if (payload_valid && strcmp(payload, "PUMP_TOGGLE") == 0) {
+            device->pending_event = RN2483_EVENT_PUMP_TOGGLE;
             device->stats.valid_commands++;
-        } else if (payload_valid && strcmp(payload, "PUMP_OFF") == 0) {
-            device->pending_event = RN2483_EVENT_PUMP_OFF;
+        } else if (payload_valid && strcmp(payload, "PUMP_RUN_6_5") == 0) {
+            device->pending_event = RN2483_EVENT_PUMP_RUN_6_5;
             device->stats.valid_commands++;
         } else if (payload_valid && strcmp(payload, "LED_ON") == 0) {
             device->pending_event = RN2483_EVENT_LED_ON;
             device->stats.valid_commands++;
         } else if (payload_valid && strcmp(payload, "LED_OFF") == 0) {
             device->pending_event = RN2483_EVENT_LED_OFF;
-            device->stats.valid_commands++;
-        } else if (payload_valid &&
-                   parse_bump_duration_ms(payload, &bump_duration_ms)) {
-            device->pending_bump_duration_ms = bump_duration_ms;
-            device->pending_event = RN2483_EVENT_BUMP;
             device->stats.valid_commands++;
         } else if (payload_valid && strcmp(payload, "PING") == 0) {
             device->pending_event = RN2483_EVENT_PING;
@@ -614,11 +564,6 @@ rn2483_event_t rn2483_take_event(rn2483_t *device)
     const rn2483_event_t event = device->pending_event;
     device->pending_event = RN2483_EVENT_NONE;
     return event;
-}
-
-uint32_t rn2483_bump_duration_ms(const rn2483_t *device)
-{
-    return device == NULL ? 0U : device->pending_bump_duration_ms;
 }
 
 bool rn2483_is_ready(const rn2483_t *device)

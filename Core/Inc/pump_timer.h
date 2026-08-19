@@ -9,6 +9,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Change this value to set the fixed pump-run duration.  The existing
+ * PUMP_RUN_6_5 command name is intentionally independent of this setting. */
+#ifndef PUMP_RUN_DURATION_MS
+#define PUMP_RUN_DURATION_MS 6500U
+#endif
+
 typedef struct {
     volatile uint32_t deadline_ms;
     volatile bool active;
